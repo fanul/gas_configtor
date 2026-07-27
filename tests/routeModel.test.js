@@ -29,6 +29,13 @@ test('normalizeRouteInput preserves only the supported full proxy mode', () => {
   assert.equal(normalizeRouteInput({ deliveryMode: 'unknown' }).deliveryMode, 'redirect')
 })
 
+test('normalizeRouteInput forces Workspace-scoped GAS to redirect mode', () => {
+  assert.equal(normalizeRouteInput({
+    targetUrl: 'https://script.google.com/a/macros/example.org/s/deployment/exec',
+    deliveryMode: 'full_proxy',
+  }).deliveryMode, 'redirect')
+})
+
 test('normalizeCloudflareConfig trims copied identifiers and token', () => {
   const config = normalizeCloudflareConfig({
     accountId: ' 1a7341a5191b0985189879190307e821 ',

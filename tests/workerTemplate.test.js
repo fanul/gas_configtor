@@ -144,6 +144,23 @@ test('redirect mode does not depend on the browser Accept header', async () => {
   assert.equal(response.headers.get('x-gas-route-mode'), 'redirect')
 })
 
+test('Workspace-scoped GAS always redirects so Google authentication stays on its origin', async () => {
+  const targetUrl = 'https://script.google.com/a/macros/example.org/s/deployment/exec'
+  const { target, response } = await runWorker({
+    hostname: 'kpi.example.com',
+    pathPrefix: '/',
+    targetUrl,
+    stripPrefix: true,
+    deliveryMode: 'full_proxy',
+  }, 'https://kpi.example.com/')
+
+  assert.equal(target, undefined)
+  assert.equal(response.status, 302)
+  assert.equal(response.headers.get('location'), targetUrl)
+  assert.equal(response.headers.get('x-gas-route-mode'), 'redirect')
+  assert.equal(response.headers.get('x-gas-redirect-reason'), 'workspace-auth')
+})
+
 test('full proxy mode keeps browser navigation on the custom origin for regular targets', async () => {
   const upstream = new Response('<html><head></head><body>proxied</body></html>', {
     headers: { 'content-type': 'text/html' },

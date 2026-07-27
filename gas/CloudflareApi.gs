@@ -117,14 +117,14 @@ function provisionCloudflareRoute(route) {
   const routes = saved.routes || [];
   const previous = routes.find(function (item) { return item.id === route.id; });
   const normalized = normalizeRoute_(route);
-  runProvisionStep_('DNS record untuk ' + normalized.hostname, function () {
-    return ensureDnsRecord_(zoneId, normalized.hostname);
-  });
   runProvisionStep_('upload Worker ' + normalized.workerName, function () {
     return uploadWorker_(accountId, normalized.workerName, buildProxyWorker_(normalized));
   });
   const routeResult = runProvisionStep_('Worker Route ' + normalized.pattern, function () {
     return upsertWorkerRoute_(zoneId, normalized.pattern, normalized.workerName, previous);
+  });
+  runProvisionStep_('DNS record untuk ' + normalized.hostname, function () {
+    return ensureDnsRecord_(zoneId, normalized.hostname);
   });
 
   const index = routes.findIndex(function (item) { return item.id === normalized.id; });
@@ -231,7 +231,7 @@ function normalizeRoute_(route) {
     workerName: slug,
     pattern: pattern,
     stripPrefix: route.stripPrefix !== false,
-    deliveryMode: route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
+    deliveryMode: !/^https:\/\/script\.google\.com\/a\/macros\//i.test(route.targetUrl) && route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
     cloudflareRouteId: route.cloudflareRouteId || '',
     status: route.status || 'draft',
     createdAt: route.createdAt || Date.now(),
