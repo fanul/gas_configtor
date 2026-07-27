@@ -3,6 +3,15 @@ function routeId() {
   return `route-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+export function normalizeCloudflareConfig(config) {
+  return {
+    ...config,
+    accountId: String(config.accountId || '').trim(),
+    zoneId: String(config.zoneId || '').trim(),
+    apiToken: String(config.apiToken || '').trim(),
+  }
+}
+
 export function emptyRoute(zoneId = '') {
   return {
     id: routeId(),

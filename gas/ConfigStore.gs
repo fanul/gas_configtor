@@ -11,7 +11,7 @@ function parseProperty_(key, fallback) {
 
 function loadConfig() {
   const legacy = parseProperty_(CONFIG_KEY, {});
-  const config = legacy.config || legacy || {};
+  const config = normalizeCloudflareConfig_(legacy.config || legacy || {});
   const routes = parseProperty_(ROUTES_KEY, legacy.routes || []);
   const resources = parseProperty_(RESOURCES_KEY, legacy.resources || { zones: [], kvNamespaces: [] });
   delete config.apiToken;
@@ -23,7 +23,7 @@ function loadConfig() {
 function saveConfig(data) {
   const properties = PropertiesService.getScriptProperties();
   const current = loadConfig();
-  const incomingConfig = Object.assign({}, data.config || {});
+  const incomingConfig = normalizeCloudflareConfig_(Object.assign({}, data.config || {}));
   if (incomingConfig.apiToken) setSecret_(CF_TOKEN_KEY, incomingConfig.apiToken);
   delete incomingConfig.apiToken;
 
@@ -54,5 +54,12 @@ function getSecret_(key) {
 }
 
 function setSecret_(key, value) {
-  PropertiesService.getScriptProperties().setProperty(key, value);
+  PropertiesService.getScriptProperties().setProperty(key, String(value || '').trim());
+}
+
+function normalizeCloudflareConfig_(config) {
+  config.accountId = String(config.accountId || '').trim();
+  config.zoneId = String(config.zoneId || '').trim();
+  if (config.apiToken) config.apiToken = String(config.apiToken).trim();
+  return config;
 }

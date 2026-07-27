@@ -42,8 +42,8 @@ function verifyCloudflare(config) {
 
 function checkCloudflarePermissions() {
   const config = getCloudflareConfig_();
-  const accountId = requireField_(config.accountId, 'Account ID');
-  const zoneId = requireField_(config.zoneId, 'Zone ID');
+  const accountId = requireField_(String(config.accountId || '').trim(), 'Account ID');
+  const zoneId = requireField_(String(config.zoneId || '').trim(), 'Zone ID');
   const checks = [
     { name: 'Zone Read', path: '/zones/' + encodeURIComponent(zoneId) },
     { name: 'DNS scope', path: '/zones/' + encodeURIComponent(zoneId) + '/dns_records?per_page=1' },
@@ -63,7 +63,7 @@ function checkCloudflarePermissions() {
 
 function listCloudflareResources() {
   const config = getCloudflareConfig_();
-  const accountId = requireField_(config.accountId, 'Account ID');
+  const accountId = requireField_(String(config.accountId || '').trim(), 'Account ID');
   const zones = cfRequest_('/zones?per_page=50', { method: 'get' }).result || [];
   const kv = cfRequest_('/accounts/' + encodeURIComponent(accountId) + '/storage/kv/namespaces?per_page=100', { method: 'get' }).result || [];
   const resources = {
@@ -109,8 +109,8 @@ function saveCloudflareRouteDraft(route) {
 function provisionCloudflareRoute(route) {
   validateRoute_(route);
   const config = getCloudflareConfig_();
-  const accountId = requireField_(config.accountId, 'Account ID');
-  const zoneId = route.zoneId || config.zoneId;
+  const accountId = requireField_(String(config.accountId || '').trim(), 'Account ID');
+  const zoneId = String(route.zoneId || config.zoneId || '').trim();
   if (!zoneId) throw new Error('Zone ID wajib diisi atau pilih zone dari hasil Fetch Resources.');
 
   const saved = loadConfig();

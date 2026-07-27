@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { CloudflareService } from '@/services/cloudflare/index.js'
-import { removeRoute, upsertRoute } from '@/services/cloudflare/routeModel.js'
+import { normalizeCloudflareConfig, removeRoute, upsertRoute } from '@/services/cloudflare/routeModel.js'
 
 const defaultConfig = { apiToken: '', accountId: '', zoneId: '' }
 
@@ -51,6 +51,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function saveCredentials() {
     begin()
     try {
+      config.value = normalizeCloudflareConfig(config.value)
       const result = await service.value.verify()
       config.value.apiToken = ''
       tokenConfigured.value = true
@@ -72,6 +73,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function fetchResources() {
     begin()
     try {
+      config.value = normalizeCloudflareConfig(config.value)
       await service.value.saveConfig()
       const resources = await service.value.listResources()
       zones.value = resources.zones

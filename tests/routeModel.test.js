@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { emptyRoute, normalizeRouteInput, upsertRoute, removeRoute } from '../src/services/cloudflare/routeModel.js'
+import { emptyRoute, normalizeCloudflareConfig, normalizeRouteInput, upsertRoute, removeRoute } from '../src/services/cloudflare/routeModel.js'
 
 test('emptyRoute creates an independent editable draft', () => {
   const first = emptyRoute('zone-1')
@@ -20,6 +20,17 @@ test('normalizeRouteInput splits hostname and path and sanitizes worker name', (
   assert.equal(route.hostname, 'game.uploadx.my.id')
   assert.equal(route.pathPrefix, '/backpack_jianghu')
   assert.equal(route.workerName, 'gas-game-uploadx-backpack-jianghu')
+})
+
+test('normalizeCloudflareConfig trims copied identifiers and token', () => {
+  const config = normalizeCloudflareConfig({
+    accountId: ' 1a7341a5191b0985189879190307e821 ',
+    zoneId: '\nzone-id\t',
+    apiToken: ' token-value\n',
+  })
+  assert.equal(config.accountId, '1a7341a5191b0985189879190307e821')
+  assert.equal(config.zoneId, 'zone-id')
+  assert.equal(config.apiToken, 'token-value')
 })
 
 test('upsertRoute adds multiple routes and updates one by id', () => {
