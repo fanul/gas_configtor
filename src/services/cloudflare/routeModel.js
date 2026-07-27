@@ -21,6 +21,7 @@ export function emptyRoute(zoneId = '') {
     targetUrl: '',
     workerName: '',
     stripPrefix: true,
+    deliveryMode: 'redirect',
     pattern: '',
     cloudflareRouteId: '',
     status: 'draft',
@@ -39,6 +40,7 @@ export function normalizeRouteInput(route) {
   if (!value.pathPrefix.startsWith('/')) value.pathPrefix = `/${value.pathPrefix}`
   value.workerName = String(value.workerName || '')
     .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63)
+  value.deliveryMode = value.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect'
   return value
 }
 

@@ -231,6 +231,7 @@ function normalizeRoute_(route) {
     workerName: slug,
     pattern: pattern,
     stripPrefix: route.stripPrefix !== false,
+    deliveryMode: route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
     cloudflareRouteId: route.cloudflareRouteId || '',
     status: route.status || 'draft',
     createdAt: route.createdAt || Date.now(),

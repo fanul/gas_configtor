@@ -7,6 +7,7 @@ test('emptyRoute creates an independent editable draft', () => {
   const second = emptyRoute('zone-1')
   assert.equal(first.zoneId, 'zone-1')
   assert.equal(first.pathPrefix, '/')
+  assert.equal(first.deliveryMode, 'redirect')
   assert.equal(first.status, 'draft')
   assert.notEqual(first.id, second.id)
 })
@@ -20,6 +21,12 @@ test('normalizeRouteInput splits hostname and path and sanitizes worker name', (
   assert.equal(route.hostname, 'game.uploadx.my.id')
   assert.equal(route.pathPrefix, '/backpack_jianghu')
   assert.equal(route.workerName, 'gas-game-uploadx-backpack-jianghu')
+  assert.equal(route.deliveryMode, 'redirect')
+})
+
+test('normalizeRouteInput preserves only the supported full proxy mode', () => {
+  assert.equal(normalizeRouteInput({ deliveryMode: 'full_proxy' }).deliveryMode, 'full_proxy')
+  assert.equal(normalizeRouteInput({ deliveryMode: 'unknown' }).deliveryMode, 'redirect')
 })
 
 test('normalizeCloudflareConfig trims copied identifiers and token', () => {

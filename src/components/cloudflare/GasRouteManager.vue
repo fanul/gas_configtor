@@ -13,7 +13,9 @@ function resetForm() {
 }
 
 function editRoute(route) {
-  Object.assign(form, route)
+  Object.assign(form, emptyRoute(route.zoneId || cf.config.zoneId), route, {
+    deliveryMode: route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
+  })
   editingId.value = route.id
 }
 
@@ -73,6 +75,43 @@ async function deleteRoute(route) {
       <label class="flex items-center gap-2 text-sm text-slate-300">
         <input v-model="form.stripPrefix" type="checkbox" /> Strip path prefix sebelum proxy
       </label>
+      <div class="md:col-span-2 rounded-xl border p-4 transition-colors"
+        :class="form.deliveryMode === 'full_proxy' ? 'border-amber-500/50 bg-amber-500/10' : 'border-emerald-500/40 bg-emerald-500/10'">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="max-w-2xl">
+            <p class="text-sm font-semibold text-slate-100">URL delivery mode</p>
+            <p class="mt-1 text-xs leading-5 text-slate-400">
+              <template v-if="form.deliveryMode === 'full_proxy'">
+                Full proxy Worker-native: aplikasi disajikan langsung dari custom origin dan google.script.run diterjemahkan menjadi RPC fetch same-origin.
+              </template>
+              <template v-else>
+                Redirect kompatibel: paling stabil untuk Apps Script dan Google Sheet, tetapi browser berpindah ke URL Google.
+              </template>
+            </p>
+          </div>
+          <label class="switch-control">
+            <span class="text-xs font-medium" :class="form.deliveryMode === 'full_proxy' ? 'text-amber-300' : 'text-emerald-300'">
+              {{ form.deliveryMode === 'full_proxy' ? 'Full proxy' : 'Redirect' }}
+            </span>
+            <input v-model="form.deliveryMode" class="sr-only" type="checkbox" true-value="full_proxy" false-value="redirect" />
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+        <div v-if="form.deliveryMode === 'full_proxy'" class="mt-4 border-t border-amber-500/20 pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-amber-200">Checklist pengujian URL publik</p>
+          <div class="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+            <p class="strategy-pass">✓ HTML dan aset statis via Worker</p>
+            <p class="strategy-pass">✓ Header CORS + OPTIONS API Gateway</p>
+            <p class="strategy-pass">✓ Proxy GET/POST yang dipanggil lewat fetch sendiri</p>
+            <p class="strategy-pass">✓ google.script.run melalui Worker-native RPC shim</p>
+            <p class="strategy-pass">✓ URL tetap custom tanpa iframe/wrapper Google</p>
+            <p class="strategy-fail">× JSONP/proxy publik untuk RPC Google Sheet</p>
+          </div>
+          <p class="mt-3 text-xs leading-5 text-slate-400">
+            Target GAS perlu menyediakan endpoint HTML mentah dan dispatcher RPC allowlist. Jika endpoint tersedia, UI dan fungsi Sheet berjalan langsung dari custom origin.
+          </p>
+        </div>
+      </div>
       <div class="flex flex-wrap justify-end gap-2">
         <button type="button" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm" :disabled="cf.loading" @click="saveDraft">Save Draft</button>
         <button type="button" class="px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-sm disabled:opacity-50"
@@ -85,13 +124,17 @@ async function deleteRoute(route) {
     <div class="overflow-x-auto rounded-lg border border-slate-700">
       <table class="w-full min-w-[900px] text-left text-sm">
         <thead class="bg-slate-900 text-xs uppercase text-slate-400">
-          <tr><th class="p-3">Hostname</th><th class="p-3">Path</th><th class="p-3">Target</th><th class="p-3">Worker</th><th class="p-3">Status</th><th class="p-3 text-right">Actions</th></tr>
+          <tr><th class="p-3">Hostname</th><th class="p-3">Path</th><th class="p-3">Target</th><th class="p-3">Mode</th><th class="p-3">Worker</th><th class="p-3">Status</th><th class="p-3 text-right">Actions</th></tr>
         </thead>
         <tbody>
           <tr v-for="route in cf.gasRoutes" :key="route.id" class="border-t border-slate-700">
             <td class="p-3 font-medium">{{ route.hostname }}</td>
             <td class="p-3 font-mono text-xs">{{ route.pathPrefix }}</td>
             <td class="p-3 font-mono text-xs max-w-xs truncate" :title="route.targetUrl">{{ route.targetUrl }}</td>
+            <td class="p-3"><span class="rounded-full px-2 py-1 text-[11px] font-semibold"
+              :class="route.deliveryMode === 'full_proxy' ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'">
+              {{ route.deliveryMode === 'full_proxy' ? 'Full proxy' : 'Redirect' }}
+            </span></td>
             <td class="p-3 font-mono text-xs">{{ route.workerName }}</td>
             <td class="p-3"><span :class="route.cloudflareRouteId ? 'text-green-400' : 'text-amber-400'">{{ route.cloudflareRouteId ? 'Provisioned' : 'Draft' }}</span></td>
             <td class="p-3"><div class="flex justify-end gap-2">
@@ -100,7 +143,7 @@ async function deleteRoute(route) {
               <button class="text-red-400 hover:underline" :disabled="cf.loading" @click="deleteRoute(route)">Delete</button>
             </div></td>
           </tr>
-          <tr v-if="!cf.gasRoutes.length"><td colspan="6" class="p-6 text-center text-slate-500">Belum ada route. Klik New Route untuk menambahkan.</td></tr>
+          <tr v-if="!cf.gasRoutes.length"><td colspan="7" class="p-6 text-center text-slate-500">Belum ada route. Klik New Route untuk menambahkan.</td></tr>
         </tbody>
       </table>
     </div>
@@ -113,4 +156,12 @@ async function deleteRoute(route) {
 <style scoped>
 .field { width: 100%; padding: .5rem .75rem; background: rgb(15 23 42); border: 1px solid rgb(51 65 85); border-radius: .5rem; font-size: .875rem; }
 .field:focus { outline: none; border-color: var(--color-primary); }
+.switch-control { display: flex; align-items: center; gap: .75rem; cursor: pointer; user-select: none; }
+.switch-track { position: relative; width: 3.25rem; height: 1.75rem; border-radius: 999px; background: rgb(51 65 85); transition: background-color .2s ease, box-shadow .2s ease; }
+.switch-thumb { position: absolute; width: 1.25rem; height: 1.25rem; left: .25rem; top: .25rem; border-radius: 999px; background: white; box-shadow: 0 2px 8px rgb(0 0 0 / .35); transition: transform .2s cubic-bezier(.2,.8,.2,1); }
+.switch-control input:checked + .switch-track { background: rgb(245 158 11); box-shadow: 0 0 0 3px rgb(245 158 11 / .15); }
+.switch-control input:checked + .switch-track .switch-thumb { transform: translateX(1.5rem); }
+.switch-control input:focus-visible + .switch-track { outline: 2px solid white; outline-offset: 2px; }
+.strategy-pass { color: rgb(110 231 183); }
+.strategy-fail { color: rgb(252 165 165); }
 </style>
