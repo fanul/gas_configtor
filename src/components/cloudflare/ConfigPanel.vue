@@ -8,6 +8,7 @@ const cf = useCloudflareStore()
   <section class="bg-surface-elevated rounded-xl border border-slate-700 p-5">
     <h2 class="text-base font-semibold text-slate-100 mb-1">Cloudflare Credentials</h2>
     <p class="text-xs text-slate-500 mb-4">Token, account, zone, route, dan cache resource disimpan di GAS Script Properties. Zone/KV otomatis direfresh saat load.</p>
+    <p class="text-xs text-amber-400 mb-4">Wajib: Account → Workers Scripts Edit; Zone → DNS Edit, Workers Routes Edit, Zone Read; Account → Workers KV Storage Read.</p>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <label class="space-y-1">

@@ -32,7 +32,33 @@ function cfRequest_(path, options) {
 function verifyCloudflare(config) {
   saveCloudflareConfig(config || {});
   const result = cfRequest_('/user/tokens/verify', { method: 'get' });
-  return { ok: true, status: result.result && result.result.status };
+  const permissionCheck = checkCloudflarePermissions();
+  return {
+    ok: permissionCheck.ok,
+    status: result.result && result.result.status,
+    permissions: permissionCheck,
+  };
+}
+
+function checkCloudflarePermissions() {
+  const config = getCloudflareConfig_();
+  const accountId = requireField_(config.accountId, 'Account ID');
+  const zoneId = requireField_(config.zoneId, 'Zone ID');
+  const checks = [
+    { name: 'Zone Read', path: '/zones/' + encodeURIComponent(zoneId) },
+    { name: 'DNS scope', path: '/zones/' + encodeURIComponent(zoneId) + '/dns_records?per_page=1' },
+    { name: 'Workers Scripts scope', path: '/accounts/' + encodeURIComponent(accountId) + '/workers/scripts' },
+    { name: 'Workers Routes scope', path: '/zones/' + encodeURIComponent(zoneId) + '/workers/routes' },
+  ];
+  const results = checks.map(function (check) {
+    try {
+      cfRequest_(check.path, { method: 'get' });
+      return { name: check.name, ok: true };
+    } catch (err) {
+      return { name: check.name, ok: false, error: err.message };
+    }
+  });
+  return { ok: results.every(function (item) { return item.ok; }), checks: results };
 }
 
 function listCloudflareResources() {
@@ -91,9 +117,15 @@ function provisionCloudflareRoute(route) {
   const routes = saved.routes || [];
   const previous = routes.find(function (item) { return item.id === route.id; });
   const normalized = normalizeRoute_(route);
-  ensureDnsRecord_(zoneId, normalized.hostname);
-  uploadWorker_(accountId, normalized.workerName, buildProxyWorker_(normalized));
-  const routeResult = upsertWorkerRoute_(zoneId, normalized.pattern, normalized.workerName, previous);
+  runProvisionStep_('DNS record untuk ' + normalized.hostname, function () {
+    return ensureDnsRecord_(zoneId, normalized.hostname);
+  });
+  runProvisionStep_('upload Worker ' + normalized.workerName, function () {
+    return uploadWorker_(accountId, normalized.workerName, buildProxyWorker_(normalized));
+  });
+  const routeResult = runProvisionStep_('Worker Route ' + normalized.pattern, function () {
+    return upsertWorkerRoute_(zoneId, normalized.pattern, normalized.workerName, previous);
+  });
 
   const index = routes.findIndex(function (item) { return item.id === normalized.id; });
   normalized.cloudflareRouteId = routeResult.id;
@@ -108,6 +140,14 @@ function provisionCloudflareRoute(route) {
     cloudflareRouteId: routeResult.id,
     publicUrl: 'https://' + normalized.hostname + normalized.pathPrefix,
   };
+}
+
+function runProvisionStep_(label, operation) {
+  try {
+    return operation();
+  } catch (err) {
+    throw new Error('Provision gagal pada tahap [' + label + ']: ' + err.message);
+  }
 }
 
 function deleteCloudflareRoute(route) {

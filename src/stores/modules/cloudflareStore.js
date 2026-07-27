@@ -54,7 +54,12 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
       const result = await service.value.verify()
       config.value.apiToken = ''
       tokenConfigured.value = true
-      success.value = `Cloudflare token valid (${result.status || 'active'})`
+      const failed = result.permissions?.checks?.filter((item) => !item.ok) || []
+      if (failed.length) {
+        error.value = `Token aktif tetapi scope gagal: ${failed.map((item) => item.name).join(', ')}`
+      } else {
+        success.value = `Cloudflare token valid dan scope dapat dibaca (${result.status || 'active'})`
+      }
       lastSaved.value = Date.now()
       return result
     } catch (err) {
