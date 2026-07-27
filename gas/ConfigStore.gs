@@ -1,37 +1,48 @@
 const CONFIG_KEY = 'GAS_CONFIGTOR_CONFIG';
+const ROUTES_KEY = 'GAS_CONFIGTOR_ROUTES';
+const RESOURCES_KEY = 'GAS_CONFIGTOR_RESOURCES';
 const CF_TOKEN_KEY = 'CF_API_TOKEN';
 
+function parseProperty_(key, fallback) {
+  const raw = PropertiesService.getScriptProperties().getProperty(key);
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch (_) { return fallback; }
+}
+
 function loadConfig() {
-  const raw = PropertiesService.getScriptProperties().getProperty(CONFIG_KEY);
-  if (!raw) return { config: {}, routes: [] };
-  try {
-    const data = JSON.parse(raw);
-    data.config = data.config || {};
-    data.routes = data.routes || [];
-    delete data.config.apiToken;
-    return data;
-  } catch (err) {
-    return { config: {}, routes: [], parseError: err.message };
-  }
+  const legacy = parseProperty_(CONFIG_KEY, {});
+  const config = legacy.config || legacy || {};
+  const routes = parseProperty_(ROUTES_KEY, legacy.routes || []);
+  const resources = parseProperty_(RESOURCES_KEY, legacy.resources || { zones: [], kvNamespaces: [] });
+  delete config.apiToken;
+  delete config.routes;
+  delete config.resources;
+  return { config: config, routes: routes, resources: resources };
 }
 
 function saveConfig(data) {
+  const properties = PropertiesService.getScriptProperties();
   const current = loadConfig();
-  const incomingConfig = data.config || {};
+  const incomingConfig = Object.assign({}, data.config || {});
   if (incomingConfig.apiToken) setSecret_(CF_TOKEN_KEY, incomingConfig.apiToken);
   delete incomingConfig.apiToken;
 
-  const payload = {
-    config: Object.assign({}, current.config || {}, incomingConfig),
-    routes: data.routes || current.routes || [],
-    savedAt: Date.now(),
-  };
-  PropertiesService.getScriptProperties().setProperty(CONFIG_KEY, JSON.stringify(payload));
-  return { ok: true, savedAt: payload.savedAt, config: payload.config, routes: payload.routes };
+  const config = Object.assign({}, current.config, incomingConfig);
+  const routes = data.routes || current.routes || [];
+  const resources = data.resources || current.resources || { zones: [], kvNamespaces: [] };
+
+  properties.setProperties({
+    [CONFIG_KEY]: JSON.stringify(config),
+    [ROUTES_KEY]: JSON.stringify(routes),
+    [RESOURCES_KEY]: JSON.stringify(resources),
+  });
+
+  return { ok: true, savedAt: Date.now(), config: config, routes: routes, resources: resources };
 }
 
 function saveCloudflareConfig(config) {
-  return saveConfig({ config: config || {}, routes: loadConfig().routes || [] });
+  const current = loadConfig();
+  return saveConfig({ config: config || {}, routes: current.routes, resources: current.resources });
 }
 
 function getCloudflareConfig_() {

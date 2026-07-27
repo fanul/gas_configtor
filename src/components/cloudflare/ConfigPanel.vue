@@ -7,12 +7,12 @@ const cf = useCloudflareStore()
 <template>
   <section class="bg-surface-elevated rounded-xl border border-slate-700 p-5">
     <h2 class="text-base font-semibold text-slate-100 mb-1">Cloudflare Credentials</h2>
-    <p class="text-xs text-slate-500 mb-4">Token disimpan di GAS Script Properties, tidak dikirim kembali ke browser.</p>
+    <p class="text-xs text-slate-500 mb-4">Token, account, zone, route, dan cache resource disimpan di GAS Script Properties. Zone/KV otomatis direfresh saat load.</p>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <label class="space-y-1">
         <span class="text-xs text-slate-400">API Token</span>
-        <input v-model="cf.config.apiToken" type="password" placeholder="Isi untuk menyimpan/mengganti token"
+        <input v-model="cf.config.apiToken" type="password" :placeholder="cf.tokenConfigured ? 'Token tersimpan — isi hanya untuk mengganti' : 'Isi Cloudflare API token'"
           class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-primary" />
       </label>
       <label class="space-y-1">
@@ -41,6 +41,7 @@ const cf = useCloudflareStore()
       </button>
       <span v-if="cf.error" class="text-xs text-red-400">{{ cf.error }}</span>
       <span v-else-if="cf.success" class="text-xs text-green-400">{{ cf.success }}</span>
+      <span v-else-if="cf.tokenConfigured" class="text-xs text-green-400">Token tersimpan di GAS Properties</span>
     </div>
   </section>
 </template>

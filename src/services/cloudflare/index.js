@@ -38,8 +38,12 @@ export class CloudflareService extends BaseService {
     return gasBridge.provisionCloudflareRoute(route)
   }
 
-  removeRoute(route) {
-    return gasBridge.removeCloudflareRoute(route)
+  saveRouteDraft(route) {
+    return gasBridge.saveCloudflareRouteDraft(route)
+  }
+
+  deleteRoute(route) {
+    return gasBridge.deleteCloudflareRoute(route)
   }
 
   async applyConfig(payload) {

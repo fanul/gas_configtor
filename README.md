@@ -14,6 +14,10 @@ Saat tombol **Provision Route** ditekan, backend GAS akan:
 
 Browser tidak memanggil Cloudflare API secara langsung dan token tidak pernah dikirim kembali dari GAS ke browser.
 
+Saat dashboard dimuat, konfigurasi, route, dan cache resource dibaca dari GAS Script Properties. Jika token dan Account ID tersedia, zone dan KV otomatis direfresh dari Cloudflare; jika API gagal, dropdown tetap memakai cache terakhir.
+
+Route Provisioner menggunakan tabel CRUD: **New Route**, **Save Draft**, **Edit**, **Provision/Update**, dan **Delete**. Setiap route memiliki ID sendiri sehingga banyak hostname/path dapat dikelola sekaligus.
+
 ## Prasyarat Cloudflare
 
 Buat API Token dengan permission berikut:

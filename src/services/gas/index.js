@@ -15,10 +15,11 @@ export function callGas(functionName, ...args) {
 }
 
 export const gasBridge = {
-  loadConfig: () => callGas('loadConfig'),
+  loadConfig: () => callGas('loadCloudflareDashboard'),
   saveCloudflareConfig: (config) => callGas('saveCloudflareConfig', config),
   verifyCloudflare: (config) => callGas('verifyCloudflare', config),
   listCloudflareResources: () => callGas('listCloudflareResources'),
   provisionCloudflareRoute: (route) => callGas('provisionCloudflareRoute', route),
-  removeCloudflareRoute: (route) => callGas('removeCloudflareRoute', route),
+  saveCloudflareRouteDraft: (route) => callGas('saveCloudflareRouteDraft', route),
+  deleteCloudflareRoute: (route) => callGas('deleteCloudflareRoute', route),
 }
