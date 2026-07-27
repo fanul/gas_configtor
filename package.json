@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:gas": "npm run build && node scripts/build-gas.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,71 +1,53 @@
 import { BaseService } from '@/services/baseService.js'
+import { gasBridge } from '@/services/gas/index.js'
 
 /**
- * Cloudflare Driver
- *
- * Wraps Cloudflare REST API calls for Workers, KV, and routing metadata.
- * This is a thin client; all state lives in the cloudflareStore.
+ * Cloudflare control-plane driver.
+ * API credentials stay in GAS Script Properties; the browser only calls GAS.
  */
 export class CloudflareService extends BaseService {
   static id = 'cloudflare'
-  static name = 'Cloudflare Worker & KV'
-
-  constructor(config = {}) {
-    super(config)
-    this.baseUrl = config.baseUrl || 'https://api.cloudflare.com/client/v4'
-  }
-
-  getHeaders() {
-    return {
-      Authorization: `Bearer ${this.config.apiToken || ''}`,
-      'Content-Type': 'application/json',
-    }
-  }
+  static name = 'Cloudflare Worker Router'
 
   async init() {
-    if (!this.config.apiToken) {
-      this.ready = false
-      return false
-    }
-    this.ready = true
-    return true
+    this.ready = Boolean(this.config.accountId)
+    return this.ready
+  }
+
+  loadConfig() {
+    return gasBridge.loadConfig()
+  }
+
+  saveConfig() {
+    return gasBridge.saveCloudflareConfig(this.config)
+  }
+
+  verify() {
+    return gasBridge.verifyCloudflare(this.config)
   }
 
   async listResources() {
-    if (!this.ready) throw new Error('Cloudflare service not initialized')
-    const results = []
-
-    // Fetch KV namespaces
-    const kvRes = await fetch(`${this.baseUrl}/accounts/${this.config.accountId}/storage/kv/namespaces`, {
-      headers: this.getHeaders(),
-    })
-    if (kvRes.ok) {
-      const kvJson = await kvRes.json()
-      if (kvJson.success) {
-        results.push(
-          ...kvJson.result.map((ns) => ({
-            type: 'kv_namespace',
-            id: ns.id,
-            title: ns.title,
-          })),
-        )
-      }
+    const data = await gasBridge.listCloudflareResources()
+    return {
+      zones: data.zones || [],
+      kvNamespaces: data.kvNamespaces || [],
     }
+  }
 
-    // Fetch Workers (scripts list is not exposed directly via REST; this is a placeholder)
-    results.push({
-      type: 'worker',
-      id: 'placeholder',
-      title: 'Worker scripts require GraphQL/Wrangler API',
-    })
+  provisionRoute(route) {
+    return gasBridge.provisionCloudflareRoute(route)
+  }
 
-    return results
+  removeRoute(route) {
+    return gasBridge.removeCloudflareRoute(route)
   }
 
   async applyConfig(payload) {
-    if (!this.ready) throw new Error('Cloudflare service not initialized')
-    // In real implementation: deploy worker script, update routes, etc.
-    return { ok: true, appliedAt: Date.now(), payload }
+    const results = []
+    for (const route of payload.routes || []) {
+      results.push(await this.provisionRoute(route))
+    }
+    return { ok: true, appliedAt: Date.now(), results }
   }
 }
 

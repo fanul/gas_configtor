@@ -1,108 +1,106 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { CloudflareService } from '@/services/cloudflare/index.js'
 
+const defaultConfig = {
+  apiToken: '',
+  accountId: '',
+  zoneId: '',
+}
+
 export const useCloudflareStore = defineStore('cloudflare', () => {
-  // State
-  const config = ref({
-    apiToken: '',
-    accountId: '',
-    baseUrl: 'https://api.cloudflare.com/client/v4',
-  })
+  const config = ref({ ...defaultConfig })
   const gasRoutes = ref([])
+  const zones = ref([])
   const kvNamespaces = ref([])
-  const workerMeta = ref({})
   const loading = ref(false)
   const error = ref('')
+  const success = ref('')
   const lastSaved = ref(null)
 
-  // Derived state
   const service = computed(() => new CloudflareService(config.value))
-
-  const isConfigured = computed(() => Boolean(config.value.apiToken && config.value.accountId))
-
+  const isConfigured = computed(() => Boolean(config.value.accountId))
   const routeCount = computed(() => gasRoutes.value.length)
 
-  // Actions
-  async function initService() {
+  function begin() {
     loading.value = true
     error.value = ''
+    success.value = ''
+  }
+
+  function fail(err, fallback) {
+    error.value = err?.message || fallback
+    throw err
+  }
+
+  async function load() {
+    begin()
     try {
-      await service.value.init()
+      const data = await service.value.loadConfig()
+      config.value = { ...defaultConfig, ...(data.config || {}) }
+      gasRoutes.value = data.routes || []
     } catch (err) {
-      error.value = err.message || 'Failed to init Cloudflare service'
+      fail(err, 'Gagal memuat konfigurasi')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function saveCredentials() {
+    begin()
+    try {
+      const result = await service.value.verify()
+      config.value.apiToken = ''
+      success.value = `Cloudflare token valid (${result.status || 'active'})`
+      lastSaved.value = Date.now()
+      return result
+    } catch (err) {
+      fail(err, 'Gagal menyimpan Cloudflare credentials')
     } finally {
       loading.value = false
     }
   }
 
   async function fetchResources() {
-    if (!isConfigured.value) {
-      error.value = 'Configure API token and account ID first'
-      return
-    }
-    loading.value = true
-    error.value = ''
+    begin()
     try {
-      await service.value.init()
+      await service.value.saveConfig()
       const resources = await service.value.listResources()
-      kvNamespaces.value = resources.filter((r) => r.type === 'kv_namespace')
+      zones.value = resources.zones
+      kvNamespaces.value = resources.kvNamespaces
+      success.value = `${zones.value.length} zone dan ${kvNamespaces.value.length} KV ditemukan`
     } catch (err) {
-      error.value = err.message || 'Failed to fetch Cloudflare resources'
+      fail(err, 'Gagal mengambil resource Cloudflare')
     } finally {
       loading.value = false
     }
   }
 
-  function addGasRoute(pattern, scriptId, bindings = []) {
-    gasRoutes.value.push({
-      id: Date.now().toString(),
-      pattern,
-      scriptId,
-      bindings,
-      createdAt: Date.now(),
-    })
-  }
-
-  function removeGasRoute(id) {
-    gasRoutes.value = gasRoutes.value.filter((r) => r.id !== id)
+  async function provisionRoute(route) {
+    begin()
+    try {
+      const result = await service.value.provisionRoute(route)
+      const index = gasRoutes.value.findIndex((item) => item.id === result.route.id)
+      const stored = { ...result.route, cloudflareRouteId: result.cloudflareRouteId }
+      if (index >= 0) gasRoutes.value[index] = stored
+      else gasRoutes.value.push(stored)
+      success.value = `Route aktif: ${result.publicUrl}`
+      lastSaved.value = result.appliedAt
+      return result
+    } catch (err) {
+      fail(err, 'Gagal provisioning route')
+    } finally {
+      loading.value = false
+    }
   }
 
   function updateConfig(patch) {
     config.value = { ...config.value, ...patch }
   }
 
-  async function saveRoutes() {
-    loading.value = true
-    error.value = ''
-    try {
-      const result = await service.value.applyConfig({ routes: gasRoutes.value })
-      lastSaved.value = result.appliedAt
-      return result
-    } catch (err) {
-      error.value = err.message || 'Failed to save routes'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
   return {
-    config,
-    gasRoutes,
-    kvNamespaces,
-    workerMeta,
-    loading,
-    error,
-    lastSaved,
-    service,
-    isConfigured,
-    routeCount,
-    initService,
-    fetchResources,
-    addGasRoute,
-    removeGasRoute,
-    updateConfig,
-    saveRoutes,
+    config, gasRoutes, zones, kvNamespaces, loading, error, success, lastSaved,
+    service, isConfigured, routeCount, load, saveCredentials, fetchResources,
+    provisionRoute, updateConfig,
   }
 })
