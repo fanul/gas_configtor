@@ -1,38 +1,171 @@
 # gas_configtor
 
-This template should help get you started developing with Vue 3 in Vite.
+Dashboard Vue 3 yang berjalan sebagai Google Apps Script Web App untuk mengelola Cloudflare KV dan melakukan provisioning subdomain/path route secara langsung dari GAS.
 
-## Recommended IDE Setup
+## Yang dilakukan Route Provisioner
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+Saat tombol **Provision Route** ditekan, backend GAS akan:
 
-## Recommended Browser Setup
+1. Menyimpan API token secara privat di `PropertiesService`.
+2. Membuat DNS record proxied untuk hostname jika belum ada.
+3. Mengunggah Cloudflare Worker proxy untuk target URL.
+4. Membuat atau memperbarui Cloudflare Worker Route.
+5. Menyimpan metadata route di konfigurasi GAS.
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+Browser tidak memanggil Cloudflare API secara langsung dan token tidak pernah dikirim kembali dari GAS ke browser.
 
-## Customize configuration
+## Prasyarat Cloudflare
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+Buat API Token dengan permission berikut:
 
-## Project Setup
+- Account → Workers Scripts → Edit
+- Zone → Workers Routes → Edit
+- Zone → DNS → Edit
+- Zone → Zone → Read
+- Account → Workers KV Storage → Read (untuk daftar KV)
 
-```sh
-npm install
+Batasi token ke account dan zone yang diperlukan.
+
+Dapatkan **Account ID** dari halaman Overview Cloudflare. Zone ID akan dipilih otomatis setelah menekan **Fetch Resources**.
+
+## Usage 1: seluruh subdomain
+
+Tujuan:
+
+```text
+https://game.uploadx.my.id/*
+        ↓
+Cloudflare Worker
+        ↓
+https://script.google.com/macros/s/DEPLOYMENT_ID/exec/*
 ```
 
-### Compile and Hot-Reload for Development
+Isi form:
 
-```sh
+```text
+Hostname/Subdomain : game.uploadx.my.id
+Path prefix        : /
+Target URL         : https://script.google.com/macros/s/DEPLOYMENT_ID/exec
+Worker name        : gas-game-uploadx
+Strip prefix       : aktif
+```
+
+Cloudflare route yang dibuat:
+
+```text
+game.uploadx.my.id/*
+```
+
+## Usage 2: hanya path `/backpack`
+
+Tujuan:
+
+```text
+https://game.uploadx.my.id/backpack/*
+        ↓
+Cloudflare Worker
+        ↓
+https://script.google.com/macros/s/DEPLOYMENT_ID/exec/*
+```
+
+Isi form:
+
+```text
+Hostname/Subdomain : game.uploadx.my.id
+Path prefix        : /backpack
+Target URL         : https://script.google.com/macros/s/DEPLOYMENT_ID/exec
+Worker name        : gas-game-uploadx-backpack
+Strip prefix       : aktif
+```
+
+Cloudflare route yang dibuat:
+
+```text
+game.uploadx.my.id/backpack*
+```
+
+Dengan `Strip prefix` aktif:
+
+```text
+/backpack/users?id=1 → target /users?id=1
+```
+
+Dengan `Strip prefix` nonaktif:
+
+```text
+/backpack/users?id=1 → target /backpack/users?id=1
+```
+
+## Peringatan route overlap
+
+Jangan memasang route root `game.uploadx.my.id/*` dan route path `game.uploadx.my.id/backpack*` ke target yang bertentangan tanpa memahami precedence. Cloudflare memilih pattern paling spesifik, sehingga `/backpack*` akan menang untuk request `/backpack...`.
+
+DNS dummy yang dibuat adalah proxied AAAA `100::`. DNS ini hanya menjadi attachment point untuk Worker Route; request yang cocok diproses Worker sebelum menuju origin.
+
+## Menjalankan lokal
+
+```bash
+npm install
 npm run dev
 ```
 
-### Compile and Minify for Production
+`google.script.run` hanya tersedia di deployment GAS. Build lokal berguna untuk UI, tetapi operasi Cloudflare harus dites dari URL `/exec`.
 
-```sh
+## Build Vue
+
+```bash
 npm run build
 ```
+
+Build menghasilkan `dist/`. Untuk GAS, JS dan CSS harus di-inline menjadi satu `index.html`.
+
+## Struktur modular
+
+```text
+src/services/gas/               bridge google.script.run
+src/services/cloudflare/        Cloudflare control-plane driver
+src/stores/modules/             state dan actions Pinia
+src/components/cloudflare/      credentials, KV, route provisioner
+gas/Code.gs                     GAS web app entrypoint
+gas/ConfigStore.gs              config dan secret storage
+gas/CloudflareApi.gs            Cloudflare REST API orchestration
+gas/WorkerTemplate.gs           generator Worker proxy
+```
+
+## Deploy dengan clasp
+
+`.clasp.json`:
+
+```json
+{
+  "scriptId": "YOUR_SCRIPT_ID",
+  "rootDir": "gas"
+}
+```
+
+Setelah hasil build di-inline dan disalin menjadi `gas/index.html`:
+
+```bash
+clasp push
+clasp deploy -d "Cloudflare route provisioner"
+```
+
+Jika deployment sudah ada:
+
+```bash
+clasp deployments
+clasp deploy -i DEPLOYMENT_ID -d "Cloudflare route provisioner update"
+```
+
+Di environment yang mengalami `Premature close`, gunakan Google Apps Script REST API untuk push content, membuat version, dan memperbarui deployment.
+
+## Security
+
+- Jangan commit API token.
+- Token disimpan dalam GAS Script Properties sebagai `CF_API_TOKEN`.
+- Deployment GAS sebaiknya dibatasi sesuai kebutuhan. Jika web app dibuka publik, siapa pun yang dapat membuka dashboard berpotensi melakukan provisioning dengan token pemilik deployment.
+- Untuk penggunaan publik, tambahkan allowlist email atau autentikasi di backend sebelum `provisionCloudflareRoute()`.
+
+## Batasan
+
+Cloudflare Worker proxy cocok untuk endpoint HTTP dan GAS `doGet`/`doPost`. Halaman GAS HtmlService yang bergantung pada `google.script.run` sebaiknya tetap dibuka melalui URL deployment GAS karena bridge tersebut terikat pada runtime Google Apps Script.
