@@ -18,6 +18,21 @@ export function emptyRoute(zoneId = '') {
   }
 }
 
+export function normalizeRouteInput(route) {
+  const value = { ...route }
+  const raw = String(value.hostname || '').trim().replace(/^https?:\/\//i, '')
+  const slash = raw.indexOf('/')
+  value.hostname = (slash < 0 ? raw : raw.slice(0, slash)).replace(/\/$/, '').toLowerCase()
+  if (slash >= 0 && (!value.pathPrefix || value.pathPrefix === '/')) {
+    value.pathPrefix = `/${raw.slice(slash + 1).replace(/^\/+|\/+$/g, '')}`
+  }
+  value.pathPrefix = value.pathPrefix || '/'
+  if (!value.pathPrefix.startsWith('/')) value.pathPrefix = `/${value.pathPrefix}`
+  value.workerName = String(value.workerName || '')
+    .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63)
+  return value
+}
+
 export function upsertRoute(routes, route) {
   const index = routes.findIndex((item) => item.id === route.id)
   if (index < 0) return [...routes, { ...route }]

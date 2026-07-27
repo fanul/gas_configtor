@@ -1,7 +1,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useCloudflareStore } from '@/stores/modules/cloudflareStore.js'
-import { emptyRoute } from '@/services/cloudflare/routeModel.js'
+import { emptyRoute, normalizeRouteInput } from '@/services/cloudflare/routeModel.js'
 
 const cf = useCloudflareStore()
 const editingId = ref('')
@@ -18,13 +18,13 @@ function editRoute(route) {
 }
 
 async function saveDraft() {
-  const stored = await cf.saveRouteDraft({ ...form, zoneId: form.zoneId || cf.config.zoneId })
+  const stored = await cf.saveRouteDraft(normalizeRouteInput({ ...form, zoneId: form.zoneId || cf.config.zoneId }))
   Object.assign(form, stored)
   editingId.value = stored.id
 }
 
 async function provision() {
-  const result = await cf.provisionRoute({ ...form, zoneId: form.zoneId || cf.config.zoneId })
+  const result = await cf.provisionRoute(normalizeRouteInput({ ...form, zoneId: form.zoneId || cf.config.zoneId }))
   Object.assign(form, result.route, { cloudflareRouteId: result.cloudflareRouteId })
   editingId.value = result.route.id
 }

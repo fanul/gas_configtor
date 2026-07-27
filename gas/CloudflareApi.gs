@@ -167,15 +167,16 @@ function requireField_(value, label) {
 
 function validateRoute_(route) {
   if (!route) throw new Error('Route tidak boleh kosong.');
-  requireField_(route.hostname, 'Hostname');
+  const parts = splitHostnamePath_(requireField_(route.hostname, 'Hostname'), route.pathPrefix);
   requireField_(route.targetUrl, 'Target URL');
   if (!/^https:\/\//i.test(route.targetUrl)) throw new Error('Target URL harus memakai HTTPS.');
-  if (!/^[a-z0-9.-]+$/i.test(route.hostname)) throw new Error('Hostname tidak valid.');
+  if (!/^[a-z0-9.-]+$/i.test(parts.hostname)) throw new Error('Hostname tidak valid. Gunakan contoh game.uploadx.my.id dan taruh /path di Path Prefix.');
 }
 
 function normalizeRoute_(route) {
-  const hostname = route.hostname.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
-  let pathPrefix = (route.pathPrefix || '/').trim();
+  const parts = splitHostnamePath_(route.hostname, route.pathPrefix);
+  const hostname = parts.hostname;
+  let pathPrefix = parts.pathPrefix;
   if (pathPrefix.charAt(0) !== '/') pathPrefix = '/' + pathPrefix;
   pathPrefix = pathPrefix.replace(/\/+$/, '') || '/';
   const slug = (route.workerName || ('gas-' + hostname + '-' + pathPrefix))
@@ -195,4 +196,15 @@ function normalizeRoute_(route) {
     createdAt: route.createdAt || Date.now(),
     updatedAt: Date.now(),
   };
+}
+
+function splitHostnamePath_(hostnameValue, pathValue) {
+  const raw = String(hostnameValue || '').trim().replace(/^https?:\/\//i, '');
+  const slash = raw.indexOf('/');
+  const hostname = (slash < 0 ? raw : raw.substring(0, slash)).replace(/\/$/, '').toLowerCase();
+  let pathPrefix = String(pathValue || '/').trim();
+  if (slash >= 0 && (!pathPrefix || pathPrefix === '/')) {
+    pathPrefix = '/' + raw.substring(slash + 1).replace(/^\/+|\/+$/g, '');
+  }
+  return { hostname: hostname, pathPrefix: pathPrefix || '/' };
 }
