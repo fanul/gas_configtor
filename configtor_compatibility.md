@@ -8,14 +8,14 @@ Worker-native Full Proxy mode.
 
 Goals:
 - Keep the browser on the custom Cloudflare origin.
-- Keep existing google.script.run calls unchanged.
+- Keep existing google.script.run calls default.
 - Add only the transport contract required by GAS Configtor.
 - Do not change business logic, validation, Spreadsheet/Drive operations,
   function arguments, or return values.
 
 Requirements:
 
-1. Preserve the normal doGet(e) behavior so the original GAS /exec URL remains usable.
+1. Preserve the default doGet(e) behavior so the original GAS /exec URL remains usable.
 
 2. Add a branch to doGet(e) for e.parameter.__full_proxy_html === "1".
    Return JSON through ContentService:
@@ -44,7 +44,7 @@ Requirements:
    Success: { "ok": true, "result": result }
    Failure: { "ok": false, "error": "safe error message" }
 
-6. Keep existing frontend google.script.run calls unchanged. GAS Configtor injects
+6. Keep existing frontend google.script.run calls default. GAS Configtor injects
    a same-origin compatibility shim supporting withSuccessHandler(),
    withFailureHandler(), dynamic method names, and arguments.
 
