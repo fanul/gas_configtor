@@ -151,6 +151,19 @@ Dengan konfigurasi ini, Spreadsheet/Drive dijalankan memakai izin pemilik deploy
 
 Jika setiap pengguna harus login atau memberi izin Google sendiri, gunakan mode **Redirect** ke deployment yang meminta login, atau implementasikan autentikasi aplikasi/OAuth eksplisit. Jangan membuka fungsi sensitif hanya karena namanya ada di allowlist RPC.
 
+### Batasan owner dan pengunjung
+
+| Kebutuhan | Full proxy owner-authorized | Alternatif untuk pengunjung |
+|---|---|---|
+| Spreadsheet/Drive/Calendar milik owner | Didukung, berjalan sebagai deployer | OAuth per pengguna atau Redirect |
+| Upload ke Drive owner | Didukung; file kecil via RPC, file besar via signed upload/R2 | OAuth per pengguna untuk Drive pengunjung |
+| Mengirim email sebagai owner | Didukung via `MailApp`/`GmailApp`; wajib auth, validasi, dan rate limit | OAuth Gmail untuk mengirim sebagai pengunjung |
+| Mengetahui email owner | `Session.getEffectiveUser().getEmail()` | — |
+| Mengetahui email pengunjung | Tidak tersedia secara tepercaya | Login Google/OIDC, OTP/magic link, atau Cloudflare Access |
+| `Session.getActiveUser()` / `UserProperties` | Tidak cocok sebagai identitas pengunjung anonim | Session aplikasi terverifikasi |
+
+Jangan pernah menjadikan handler email atau upload sebagai endpoint publik tanpa authorization. Contoh aman dan pilihan OAuth/Redirect tersedia di [`configtor_compatibility.md`](configtor_compatibility.md).
+
 Worker Configtor akan menyajikan HTML tersebut dari custom origin dan menyediakan shim yang kompatibel dengan pola berikut:
 
 ```javascript

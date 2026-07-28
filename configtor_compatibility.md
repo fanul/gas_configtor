@@ -76,6 +76,12 @@ Requirements:
     resources as that visitor, preserve that requirement. Recommend GAS
     Configtor Redirect mode or explicit application authentication/OAuth.
 
+13. Inventory every use of Session, UserProperties, Drive, Gmail/Mail, Calendar,
+    file upload, and other Google services. State whether each operation runs as
+    the deploying owner or needs visitor authorization. Never expose owner-powered
+    email or upload handlers without verified application authorization, input
+    validation, quotas, and rate limiting.
+
 Acceptance criteria:
 - The normal GAS /exec URL still works.
 - GET ?__full_proxy_html=1 returns {ok:true,html:"..."} as JSON.
@@ -110,6 +116,77 @@ Target manifest for owner-authorized Full Proxy:
 Spreadsheet, Drive, and other Google services then run with the deploying owner's grants. The visitor's Google cookies are not forwarded, `Session.getActiveUser()` may be blank, and `PropertiesService.getUserProperties()` does not isolate anonymous visitors. The RPC allowlist is not authentication.
 
 Choose **Redirect** when Google must authenticate each visitor. To retain a custom-domain Full Proxy with user accounts, add verified application sessions or OAuth/OIDC and authorize every sensitive RPC handler.
+
+## Google services, email, and uploads
+
+With `USER_DEPLOYING`, calls to `SpreadsheetApp`, `DriveApp`, `CalendarApp`, `DocumentApp`, `SlidesApp`, `FormsApp`, `MailApp`, `GmailApp`, Advanced Services, and Google APIs called with the script token use the deploying owner's grants. They do not become unavailable, but they do not run as the visitor.
+
+| Operation | Full Proxy result | Use instead when visitor-owned |
+|---|---|---|
+| Read/write owner resources | Supported | — |
+| Read/write visitor Drive, Gmail, Calendar, Sheets | Not implicitly supported | Per-user OAuth or Redirect |
+| `Session.getEffectiveUser().getEmail()` | Owner/deployer email | — |
+| `Session.getActiveUser().getEmail()` | Usually blank | Verified login/OIDC/OTP |
+| Send mail with `MailApp`/`GmailApp` | Sends with owner identity/quota | Gmail OAuth per visitor |
+| Upload into owner Drive | Supported | Visitor OAuth for visitor Drive |
+| Large upload | Avoid Base64 RPC overhead | Signed direct upload/R2, then process server-side |
+
+An email typed into a form is contact data, not proof of identity. Verify ownership with login, OTP, or a magic link before using it for authorization.
+
+### Owner-powered email example
+
+```javascript
+function sendOwnerEmail(to, subject, body) {
+  const user = requireAppUser_()
+  if (!user.roles || user.roles.indexOf('mailer') < 0) throw new Error('Forbidden')
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(to || ''))) throw new Error('Invalid recipient')
+  if (!subject || String(subject).length > 150) throw new Error('Invalid subject')
+  if (String(body || '').length > 10000) throw new Error('Message too large')
+  enforceRateLimit_(user.userId, 'send-email')
+  MailApp.sendEmail({ to: to, subject: String(subject), body: String(body) })
+  return { ok: true }
+}
+```
+
+Add `sendOwnerEmail` to the RPC allowlist only when `requireAppUser_` and `enforceRateLimit_` are real implementations. Otherwise omit the handler.
+
+### Small upload to owner Drive
+
+```javascript
+function uploadSmallFile(payload) {
+  const user = requireAppUser_()
+  if (!payload || !payload.base64 || !payload.fileName) throw new Error('Invalid upload')
+  if (String(payload.base64).length > 7_000_000) throw new Error('Use direct upload')
+  const mime = String(payload.mimeType || 'application/octet-stream')
+  const allowed = ['image/png', 'image/jpeg', 'application/pdf']
+  if (allowed.indexOf(mime) < 0) throw new Error('File type is not allowed')
+  enforceRateLimit_(user.userId, 'upload')
+  const blob = Utilities.newBlob(Utilities.base64Decode(payload.base64), mime, String(payload.fileName))
+  const file = DriveApp.getFolderById(getUploadFolderId_()).createFile(blob)
+  return { id: file.getId(), name: file.getName(), mimeType: file.getMimeType() }
+}
+```
+
+Return plain JSON, never a `Blob` or Drive `File`. Keep folder IDs in Script Properties, validate actual file content where risk matters, and use direct signed upload for large files.
+
+### Alternatives while keeping Full Proxy
+
+```text
+Need verified visitor identity only
+→ Google OIDC / Cloudflare Access / OTP → application session → signed RPC context
+
+Need visitor Google Drive/Gmail/Calendar access
+→ OAuth authorization-code flow → encrypted per-user token storage → call Google API
+
+Need large uploads
+→ Worker issues short-lived signed upload → browser uploads directly to R2/storage
+→ GAS receives only metadata or processes the stored object
+
+Cannot implement those controls safely
+→ use Redirect and let Google own login/consent
+```
+
+The Worker template can transport and verify an application session, but it cannot manufacture Google user consent, impersonate a visitor, or safely infer identity from a plain email/header. OAuth scopes, token storage, role checks, resource ownership, and business authorization remain application-specific and should not be enabled by default.
 
 ## Minimal backend shape
 
