@@ -136,6 +136,21 @@ Aplikasi GAS target harus menyediakan dua kontrak tambahan:
 1. `GET ?__full_proxy_html=1` mengembalikan JSON berisi HTML aplikasi mentah, bukan output wrapper `HtmlService`.
 2. `POST /exec` menerima `{ "functionName": "...", "args": [...] }`, menjalankan hanya fungsi pada allowlist, lalu mengembalikan `{ "ok": true, "result": ... }`.
 
+### Prasyarat deployment target
+
+Full proxy mengambil HTML dan menjalankan RPC dari Cloudflare Worker, bukan dari sesi Google browser. Deployment GAS target harus memakai:
+
+```json
+"webapp": {
+  "executeAs": "USER_DEPLOYING",
+  "access": "ANYONE_ANONYMOUS"
+}
+```
+
+Dengan konfigurasi ini, Spreadsheet/Drive dijalankan memakai izin pemilik deployment. Pengunjung tidak otomatis memiliki identitas Google; `Session.getActiveUser()` dan `UserProperties` tidak boleh dipakai sebagai identitas pengguna anonim.
+
+Jika setiap pengguna harus login atau memberi izin Google sendiri, gunakan mode **Redirect** ke deployment yang meminta login, atau implementasikan autentikasi aplikasi/OAuth eksplisit. Jangan membuka fungsi sensitif hanya karena namanya ada di allowlist RPC.
+
 Worker Configtor akan menyajikan HTML tersebut dari custom origin dan menyediakan shim yang kompatibel dengan pola berikut:
 
 ```javascript
@@ -152,6 +167,8 @@ Gunakan [`configtor_compatibility.md`](configtor_compatibility.md) saat meminta 
 Frontend yang sudah memakai `google.script.run` tidak perlu diubah menjadi `fetch()`; Worker Configtor menyuntikkan shim same-origin. Project target hanya perlu menambahkan endpoint HTML mentah, dispatcher RPC allowlist, dan hasil yang dapat diserialisasi JSON.
 
 URL Workspace `https://script.google.com/a/macros/...` otomatis dipaksa ke mode **Redirect**. Kegagalan Full proxy biasa tidak otomatis mengulang RPC/POST melalui Redirect karena operasi tulis dapat berjalan dua kali; ubah mode ke Redirect lalu **Provision/Update** kembali.
+
+Perubahan kode atau akses deployment GAS target dengan URL `/exec` yang sama tidak memerlukan provisioning ulang. Jalankan **Provision/Update** hanya jika URL target, hostname, path, mode, strip-prefix, nama Worker, atau template Worker berubah.
 
 ## Menjalankan lokal
 
