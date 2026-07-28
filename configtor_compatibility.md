@@ -26,12 +26,15 @@ Requirements:
    Read the HTML with:
    HtmlService.createHtmlOutputFromFile("index").getContent()
    Use the project's actual HTML filename if it is not "index".
+   The endpoint must return HTTP success and valid JSON with ok === true and
+   html as a string; otherwise GAS Configtor returns 502.
 
 3. Add doPost(e) as an explicit RPC dispatcher. Accept only:
    {
      "functionName": "existingFunctionName",
      "args": [arg1, arg2]
    }
+   Reject missing/blank functionName and reject args unless it is an array.
 
 4. Create an explicit FULL_PROXY_RPC_HANDLERS allowlist mapping permitted names
    to existing server functions. Reject unknown functions. Never use eval(),
@@ -86,19 +89,28 @@ function doGet(e) {
     .setTitle('Nama Aplikasi')
 }
 
-const FULL_PROXY_RPC_HANDLERS = {
+const FULL_PROXY_RPC_HANDLERS = Object.assign(Object.create(null), {
   listData: listData,
   saveData: saveData
-}
+})
 
 function doPost(e) {
   try {
     const request = JSON.parse((e.postData && e.postData.contents) || '{}')
-    const handler = FULL_PROXY_RPC_HANDLERS[request.functionName]
-    if (!handler) return jsonResponse_({ ok: false, error: 'RPC function is not allowed.' })
+    if (typeof request.functionName !== 'string' || !request.functionName.trim()) {
+      return jsonResponse_({ ok: false, error: 'RPC functionName is required.' })
+    }
+    if (!Array.isArray(request.args)) {
+      return jsonResponse_({ ok: false, error: 'RPC args must be an array.' })
+    }
+    if (!Object.prototype.hasOwnProperty.call(FULL_PROXY_RPC_HANDLERS, request.functionName)) {
+      return jsonResponse_({ ok: false, error: 'RPC function is not allowed.' })
+    }
 
-    const args = Array.isArray(request.args) ? request.args : []
-    return jsonResponse_({ ok: true, result: handler.apply(null, args) })
+    return jsonResponse_({
+      ok: true,
+      result: FULL_PROXY_RPC_HANDLERS[request.functionName].apply(null, request.args)
+    })
   } catch (error) {
     return jsonResponse_({
       ok: false,

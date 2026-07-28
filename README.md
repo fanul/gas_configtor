@@ -31,6 +31,8 @@ Batasi token ke account dan zone yang diperlukan.
 
 Dapatkan **Account ID** dari halaman Overview Cloudflare. Zone ID akan dipilih otomatis setelah menekan **Fetch Resources**.
 
+Route baru menggunakan mode **Redirect** secara default. Pilih **Full proxy** hanya untuk target GAS standar `https://script.google.com/macros/s/.../exec` yang memenuhi kontrak kompatibilitas; URL Workspace `/a/macros/...` selalu kembali ke Redirect.
+
 ## Usage 1: seluruh subdomain
 
 Tujuan:
@@ -206,12 +208,13 @@ clasp deployments
 clasp deploy -i DEPLOYMENT_ID -d "Cloudflare route provisioner update"
 ```
 
-Di environment yang mengalami `Premature close`, gunakan Google Apps Script REST API untuk push content, membuat version, dan memperbarui deployment.
+Gunakan deployment ID yang ada agar URL `/exec` tetap sama. Repository juga menyediakan `python3 scripts/deploy-gas.py` untuk REST API, tetapi `SCRIPT_ID` dan lokasi kredensial clasp di script tersebut bersifat environment-specific dan harus diperiksa sebelum dipakai.
 
 ## Security
 
 - Jangan commit API token.
 - Token disimpan dalam GAS Script Properties sebagai `CF_API_TOKEN`.
+- Manifest repository saat ini membatasi dashboard ke pemilik (`MYSELF`); ubah akses deployment hanya secara sadar.
 - Deployment GAS sebaiknya dibatasi sesuai kebutuhan. Jika web app dibuka publik, siapa pun yang dapat membuka dashboard berpotensi melakukan provisioning dengan token pemilik deployment.
 - Untuk penggunaan publik, tambahkan allowlist email atau autentikasi di backend sebelum `provisionCloudflareRoute()`.
 
