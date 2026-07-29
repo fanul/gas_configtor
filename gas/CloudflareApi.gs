@@ -43,11 +43,14 @@ function verifyCloudflare(config) {
   if (config) saveCloudflareConfig(config);
   const result = cfRequest_('/user/tokens/verify', { method: 'get' });
   const permissionCheck = checkCloudflarePermissions();
+  const loaded = loadConfig();
   return {
     ok: true,
     status: result.result ? result.result.status : 'active',
     permissions: permissionCheck,
-    config: getCloudflareConfig_(),
+    config: loaded.config,
+    accounts: loaded.accounts,
+    activeAccountId: loaded.activeAccountId,
   };
 }
 
@@ -78,6 +81,10 @@ function checkCloudflarePermissions() {
 }
 
 function fetchCloudflareResources() {
+  return listCloudflareResources();
+}
+
+function listCloudflareResources() {
   const currentConfig = getCloudflareConfig_();
   const zonesResult = cfRequest_('/zones?per_page=50', { method: 'get' });
   const kvResult = cfRequest_('/accounts/' + currentConfig.accountId + '/storage/kv/namespaces?per_page=50', { method: 'get' });
@@ -190,6 +197,21 @@ function runProvisionStep_(name, fn) {
 }
 
 function provisionRoute(routeInput) {
+  return provisionCloudflareRoute(routeInput);
+}
+
+function saveCloudflareRouteDraft(routeInput) {
+  const saved = loadConfig();
+  const routes = saved.routes || [];
+  const normalized = normalizeRouteInput_(routeInput);
+
+  const index = routes.findIndex(function (item) { return item.id === normalized.id; });
+  if (index >= 0) routes[index] = normalized; else routes.push(normalized);
+  saveConfig({ config: saved.config || {}, routes: routes, resources: saved.resources });
+  return normalized;
+}
+
+function provisionCloudflareRoute(routeInput) {
   const saved = loadConfig();
   const routes = saved.routes || [];
   const normalized = normalizeRouteInput_(routeInput);
@@ -232,6 +254,10 @@ function provisionRoute(routeInput) {
 }
 
 function deleteRoute(routeInput) {
+  return deleteCloudflareRoute(routeInput);
+}
+
+function deleteCloudflareRoute(routeInput) {
   const saved = loadConfig();
   const routes = saved.routes || [];
   const normalized = normalizeRouteInput_(routeInput);
