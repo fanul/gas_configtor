@@ -2,7 +2,6 @@
 import { onMounted } from 'vue'
 import DashboardMetrics from '@/components/cloudflare/DashboardMetrics.vue'
 import ConfigPanel from '@/components/cloudflare/ConfigPanel.vue'
-import KvNamespaceList from '@/components/cloudflare/KvNamespaceList.vue'
 import GasRouteManager from '@/components/cloudflare/GasRouteManager.vue'
 import { useAppStore } from '@/stores/appStore.js'
 import { useCloudflareStore } from '@/stores/modules/cloudflareStore.js'
@@ -15,10 +14,9 @@ onMounted(() => cf.load())
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-6 pb-6">
     <DashboardMetrics />
     <ConfigPanel />
-    <KvNamespaceList />
     <GasRouteManager />
   </div>
 </template>
