@@ -16,7 +16,7 @@ async function runWorker(route, incomingUrl, upstream = new Response('ok', { sta
   let target
   let fetchInit
   const context = {
-    URL, Headers, Request, Response,
+    URL, Headers, Request, Response, atob,
     addEventListener() {},
     async fetch(url, init) {
       target = String(url)
@@ -33,6 +33,15 @@ async function runWorker(route, incomingUrl, upstream = new Response('ok', { sta
 async function capturedTarget(route, incomingUrl) {
   return (await runWorker(route, incomingUrl)).target
 }
+
+test('worker serves provisioned favicon without proxying upstream', async () => {
+  const result = await runWorker({
+    hostname: 'x.test', pathPrefix: '/app', targetUrl: 'https://example.com',
+    stripPrefix: true, faviconDataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+  }, 'https://x.test/app/favicon.ico')
+  assert.equal(result.target, undefined)
+  assert.equal(result.response.headers.get('content-type'), 'image/png')
+})
 
 test('proxy keeps exact target URL when stripped path has no suffix', async () => {
   const target = await capturedTarget({
@@ -111,7 +120,7 @@ test('browser navigation redirects to GAS so Google runtime keeps its required o
   const source = await generatedWorker(route)
   let fetchCalled = false
   const context = {
-    URL, Headers, Request, Response,
+    URL, Headers, Request, Response, atob,
     addEventListener() {},
     async fetch() {
       fetchCalled = true
@@ -212,7 +221,7 @@ test('full proxy forwards same-origin RPC POST requests to the GAS deployment', 
   let target
   let fetchInit
   const context = {
-    URL, Headers, Request, Response,
+    URL, Headers, Request, Response, atob,
     addEventListener() {},
     async fetch(url, init) {
       target = String(url)
@@ -244,7 +253,7 @@ test('full proxy executes RPC by POST then reads the GAS result redirect with GE
   const calls = []
   const redirectUrl = 'https://script.googleusercontent.com/macros/echo?user_content_key=key&lib=lib'
   const context = {
-    URL, Headers, Request, Response, addEventListener() {},
+    URL, Headers, Request, Response, atob, addEventListener() {},
     async fetch(url, init) {
       calls.push({ url: String(url), init })
       if (calls.length === 1) return new Response(null, { status: 302, headers: { location: redirectUrl } })

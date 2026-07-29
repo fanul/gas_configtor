@@ -1,7 +1,17 @@
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
 
 function cfRequest_(path, options) {
-  const token = options.token || getSecret_('CF_API_TOKEN');
+  options = options || {};
+  let token = options.token;
+  if (!token) {
+    const config = getCloudflareConfig_();
+    if (config.id) {
+      token = getSecret_('CF_TOKEN_' + config.id);
+    }
+    if (!token) {
+      token = getSecret_('CF_API_TOKEN');
+    }
+  }
   if (!token) throw new Error('Cloudflare API token belum disimpan.');
 
   const request = {
@@ -30,222 +40,259 @@ function cfRequest_(path, options) {
 }
 
 function verifyCloudflare(config) {
-  saveCloudflareConfig(config || {});
+  if (config) saveCloudflareConfig(config);
   const result = cfRequest_('/user/tokens/verify', { method: 'get' });
   const permissionCheck = checkCloudflarePermissions();
   return {
-    ok: permissionCheck.ok,
-    status: result.result && result.result.status,
+    ok: true,
+    status: result.result ? result.result.status : 'active',
     permissions: permissionCheck,
+    config: getCloudflareConfig_(),
   };
 }
 
 function checkCloudflarePermissions() {
-  const config = getCloudflareConfig_();
-  const accountId = requireField_(String(config.accountId || '').trim(), 'Account ID');
-  const zoneId = requireField_(String(config.zoneId || '').trim(), 'Zone ID');
+  const currentConfig = getCloudflareConfig_();
   const checks = [
-    { name: 'Zone Read', path: '/zones/' + encodeURIComponent(zoneId) },
-    { name: 'DNS scope', path: '/zones/' + encodeURIComponent(zoneId) + '/dns_records?per_page=1' },
-    { name: 'Workers Scripts scope', path: '/accounts/' + encodeURIComponent(accountId) + '/workers/scripts' },
-    { name: 'Workers Routes scope', path: '/zones/' + encodeURIComponent(zoneId) + '/workers/routes' },
+    { key: 'userToken', label: 'User -> API Tokens -> Read', fn: function () { return cfRequest_('/user/tokens/verify'); } },
+    { key: 'accountWorker', label: 'Account -> Workers Scripts -> Edit', fn: function () { return cfRequest_('/accounts/' + currentConfig.accountId + '/workers/scripts'); } },
+    { key: 'accountKv', label: 'Account -> Workers KV Storage -> Read', fn: function () { return cfRequest_('/accounts/' + currentConfig.accountId + '/storage/kv/namespaces'); } },
   ];
-  const results = checks.map(function (check) {
+  if (currentConfig.zoneId) {
+    checks.push(
+      { key: 'zoneDns', label: 'Zone -> DNS -> Edit', fn: function () { return cfRequest_('/zones/' + currentConfig.zoneId + '/dns_records?per_page=1'); } },
+      { key: 'zoneWorkerRoute', label: 'Zone -> Workers Routes -> Edit', fn: function () { return cfRequest_('/zones/' + currentConfig.zoneId + '/workers/routes'); } }
+    );
+  }
+
+  const results = {};
+  checks.forEach(function (item) {
     try {
-      cfRequest_(check.path, { method: 'get' });
-      return { name: check.name, ok: true };
+      item.fn();
+      results[item.key] = { ok: true, label: item.label };
     } catch (err) {
-      return { name: check.name, ok: false, error: err.message };
+      results[item.key] = { ok: false, label: item.label, error: err.message };
     }
   });
-  return { ok: results.every(function (item) { return item.ok; }), checks: results };
+  return results;
 }
 
-function listCloudflareResources() {
-  const config = getCloudflareConfig_();
-  const accountId = requireField_(String(config.accountId || '').trim(), 'Account ID');
-  const zones = cfRequest_('/zones?per_page=50', { method: 'get' }).result || [];
-  const kv = cfRequest_('/accounts/' + encodeURIComponent(accountId) + '/storage/kv/namespaces?per_page=100', { method: 'get' }).result || [];
-  const resources = {
-    zones: zones.map(function (zone) { return { id: zone.id, name: zone.name, status: zone.status }; }),
-    kvNamespaces: kv.map(function (ns) { return { id: ns.id, title: ns.title }; }),
-  };
-  const saved = loadConfig();
-  saveConfig({ config: saved.config, routes: saved.routes, resources: resources });
+function fetchCloudflareResources() {
+  const currentConfig = getCloudflareConfig_();
+  const zonesResult = cfRequest_('/zones?per_page=50', { method: 'get' });
+  const kvResult = cfRequest_('/accounts/' + currentConfig.accountId + '/storage/kv/namespaces?per_page=50', { method: 'get' });
+
+  const zones = (zonesResult.result || []).map(function (item) {
+    return { id: item.id, name: item.name, status: item.status };
+  });
+  const kvNamespaces = (kvResult.result || []).map(function (item) {
+    return { id: item.id, title: item.title };
+  });
+
+  const resources = { zones: zones, kvNamespaces: kvNamespaces };
+  const loaded = loadConfig();
+  saveConfig({ config: loaded.config, routes: loaded.routes, resources: resources });
   return resources;
 }
 
-function loadCloudflareDashboard() {
-  const saved = loadConfig();
-  const result = {
-    config: saved.config || {},
-    routes: saved.routes || [],
-    resources: saved.resources || { zones: [], kvNamespaces: [] },
-    tokenConfigured: Boolean(getSecret_('CF_API_TOKEN')),
-    warning: '',
-  };
-  if (!result.tokenConfigured || !result.config.accountId) return result;
+function ensureWorkerScript_(accountId, scriptName, options) {
+  const content = generateWorkerScript(options);
+  return cfRequest_('/accounts/' + accountId + '/workers/scripts/' + scriptName, {
+    method: 'put',
+    contentType: 'application/javascript',
+    payload: content,
+  });
+}
+
+function deleteWorkerScript_(accountId, scriptName) {
   try {
-    result.resources = listCloudflareResources();
+    return cfRequest_('/accounts/' + accountId + '/workers/scripts/' + scriptName, { method: 'delete' });
   } catch (err) {
-    result.warning = 'Resource Cloudflare gagal direfresh; memakai cache GAS Properties. ' + err.message;
+    if (String(err.message).indexOf('10007') >= 0 || String(err.message).indexOf('404') >= 0) return { ok: true };
+    throw err;
   }
-  return result;
 }
 
-function saveCloudflareRouteDraft(route) {
-  validateRoute_(route);
-  const saved = loadConfig();
-  const routes = saved.routes || [];
-  const normalized = normalizeRoute_(route);
-  normalized.status = route.status === 'provisioned' ? 'provisioned' : 'draft';
-  normalized.cloudflareRouteId = route.cloudflareRouteId || '';
-  const index = routes.findIndex(function (item) { return item.id === normalized.id; });
-  if (index >= 0) routes[index] = normalized; else routes.push(normalized);
-  saveConfig({ config: saved.config, routes: routes, resources: saved.resources });
-  return normalized;
+function ensureWorkerRoute_(zoneId, pattern, scriptName, previousRouteId) {
+  if (previousRouteId) {
+    try {
+      cfRequest_('/zones/' + zoneId + '/workers/routes/' + previousRouteId, {
+        method: 'put',
+        payload: { pattern: pattern, script: scriptName },
+      });
+      return { id: previousRouteId, pattern: pattern, script: scriptName };
+    } catch (_) {}
+  }
+
+  const existingRoutes = cfRequest_('/zones/' + zoneId + '/workers/routes', { method: 'get' });
+  const matched = (existingRoutes.result || []).find(function (item) {
+    return item.pattern === pattern;
+  });
+
+  if (matched) {
+    cfRequest_('/zones/' + zoneId + '/workers/routes/' + matched.id, {
+      method: 'put',
+      payload: { pattern: pattern, script: scriptName },
+    });
+    return { id: matched.id, pattern: pattern, script: scriptName };
+  }
+
+  const created = cfRequest_('/zones/' + zoneId + '/workers/routes', {
+    method: 'post',
+    payload: { pattern: pattern, script: scriptName },
+  });
+  return { id: created.result.id, pattern: pattern, script: scriptName };
 }
 
-function provisionCloudflareRoute(route) {
-  validateRoute_(route);
-  const config = getCloudflareConfig_();
-  const accountId = requireField_(String(config.accountId || '').trim(), 'Account ID');
-  const zoneId = String(route.zoneId || config.zoneId || '').trim();
-  if (!zoneId) throw new Error('Zone ID wajib diisi atau pilih zone dari hasil Fetch Resources.');
+function deleteWorkerRoute_(zoneId, routeId) {
+  if (!routeId) return { ok: true };
+  try {
+    return cfRequest_('/zones/' + zoneId + '/workers/routes/' + routeId, { method: 'delete' });
+  } catch (err) {
+    if (String(err.message).indexOf('404') >= 0) return { ok: true };
+    throw err;
+  }
+}
 
+function ensureDnsRecord_(zoneId, hostname) {
+  const existing = cfRequest_('/zones/' + zoneId + '/dns_records?name=' + encodeURIComponent(hostname), { method: 'get' });
+  const matched = (existing.result || [])[0];
+  const payload = {
+    type: 'AAAA',
+    name: hostname,
+    content: '100::',
+    ttl: 1,
+    proxied: true,
+  };
+
+  if (matched) {
+    const updated = cfRequest_('/zones/' + zoneId + '/dns_records/' + matched.id, {
+      method: 'put',
+      payload: payload,
+    });
+    return { id: updated.result.id, hostname: hostname };
+  }
+
+  const created = cfRequest_('/zones/' + zoneId + '/dns_records', {
+    method: 'post',
+    payload: payload,
+  });
+  return { id: created.result.id, hostname: hostname };
+}
+
+function runProvisionStep_(name, fn) {
+  try {
+    const result = fn();
+    return { name: name, ok: true, result: result };
+  } catch (err) {
+    return { name: name, ok: false, error: err.message };
+  }
+}
+
+function provisionRoute(routeInput) {
   const saved = loadConfig();
   const routes = saved.routes || [];
-  const previous = routes.find(function (item) { return item.id === route.id; });
-  const normalized = normalizeRoute_(route);
-  runProvisionStep_('upload Worker ' + normalized.workerName, function () {
-    return uploadWorker_(accountId, normalized.workerName, buildProxyWorker_(normalized));
+  const normalized = normalizeRouteInput_(routeInput);
+
+  const zoneId = normalized.zoneId || saved.config.zoneId;
+  if (!zoneId) throw new Error('Zone ID Cloudflare belum dipilih.');
+  if (!saved.config.accountId) throw new Error('Account ID Cloudflare belum diset.');
+
+  const previous = routes.find(function (item) { return item.id === normalized.id; });
+  let faviconRouteResult = null;
+
+  runProvisionStep_('Worker Script ' + normalized.workerName, function () {
+    return ensureWorkerScript_(saved.config.accountId, normalized.workerName, normalized);
   });
-  const routeResult = runProvisionStep_('Worker Route ' + normalized.pattern, function () {
-    return upsertWorkerRoute_(zoneId, normalized.pattern, normalized.workerName, previous);
-  });
+  const routeResult = runProvisionStep_('Worker Route ' + normalized.routePattern, function () {
+    return ensureWorkerRoute_(zoneId, normalized.routePattern, normalized.workerName, previous && previous.cloudflareRouteId);
+  }).result;
+  if (normalized.faviconDriveFileId || normalized.faviconDataUrl) {
+    faviconRouteResult = runProvisionStep_('Favicon Route ' + normalized.faviconPattern, function () {
+      return ensureWorkerRoute_(zoneId, normalized.faviconPattern, normalized.workerName, previous && previous.faviconCloudflareRouteId);
+    }).result;
+  }
   runProvisionStep_('DNS record untuk ' + normalized.hostname, function () {
     return ensureDnsRecord_(zoneId, normalized.hostname);
   });
 
   const index = routes.findIndex(function (item) { return item.id === normalized.id; });
   normalized.cloudflareRouteId = routeResult.id;
+  normalized.faviconCloudflareRouteId = faviconRouteResult ? faviconRouteResult.id : '';
   normalized.status = 'provisioned';
+  normalized.accountId = saved.config.accountId;
+  normalized.faviconDataUrl = '';
   if (index >= 0) routes[index] = normalized; else routes.push(normalized);
   saveConfig({ config: saved.config || {}, routes: routes, resources: saved.resources });
 
   return {
     ok: true,
-    appliedAt: Date.now(),
     route: normalized,
-    cloudflareRouteId: routeResult.id,
-    publicUrl: 'https://' + normalized.hostname + normalized.pathPrefix,
   };
 }
 
-function runProvisionStep_(label, operation) {
-  try {
-    return operation();
-  } catch (err) {
-    throw new Error('Provision gagal pada tahap [' + label + ']: ' + err.message);
-  }
-}
-
-function deleteCloudflareRoute(route) {
-  const config = getCloudflareConfig_();
-  const zoneId = route.zoneId || config.zoneId;
-  if (route.cloudflareRouteId) {
-    if (!zoneId) throw new Error('Zone ID diperlukan untuk menghapus route Cloudflare.');
-    cfRequest_('/zones/' + encodeURIComponent(zoneId) + '/workers/routes/' + encodeURIComponent(route.cloudflareRouteId), { method: 'delete' });
-  }
+function deleteRoute(routeInput) {
   const saved = loadConfig();
-  const routes = (saved.routes || []).filter(function (item) { return item.id !== route.id; });
-  saveConfig({ config: saved.config, routes: routes, resources: saved.resources });
-  return { ok: true, id: route.id };
-}
+  const routes = saved.routes || [];
+  const normalized = normalizeRouteInput_(routeInput);
+  const zoneId = normalized.zoneId || saved.config.zoneId;
 
-function ensureDnsRecord_(zoneId, hostname) {
-  const query = '/zones/' + encodeURIComponent(zoneId) + '/dns_records?type=AAAA&name=' + encodeURIComponent(hostname);
-  const existing = cfRequest_(query, { method: 'get' }).result || [];
-  if (existing.length) {
-    const record = existing[0];
-    if (record.proxied) return record;
-    return cfRequest_('/zones/' + encodeURIComponent(zoneId) + '/dns_records/' + record.id, {
-      method: 'put', payload: { type: 'AAAA', name: hostname, content: '100::', proxied: true, ttl: 1 },
-    }).result;
+  if (zoneId) {
+    deleteWorkerRoute_(zoneId, normalized.cloudflareRouteId);
+    deleteWorkerRoute_(zoneId, normalized.faviconCloudflareRouteId);
   }
-  return cfRequest_('/zones/' + encodeURIComponent(zoneId) + '/dns_records', {
-    method: 'post', payload: { type: 'AAAA', name: hostname, content: '100::', proxied: true, ttl: 1 },
-  }).result;
-}
-
-function uploadWorker_(accountId, workerName, source) {
-  return cfRequest_('/accounts/' + encodeURIComponent(accountId) + '/workers/scripts/' + encodeURIComponent(workerName), {
-    method: 'put', contentType: 'application/javascript', payload: source,
-  }).result;
-}
-
-function upsertWorkerRoute_(zoneId, pattern, workerName, previous) {
-  const base = '/zones/' + encodeURIComponent(zoneId) + '/workers/routes';
-  if (previous && previous.cloudflareRouteId && previous.zoneId === zoneId) {
-    return cfRequest_(base + '/' + previous.cloudflareRouteId, {
-      method: 'put', payload: { pattern: pattern, script: workerName },
-    }).result;
+  if (saved.config.accountId) {
+    deleteWorkerScript_(saved.config.accountId, normalized.workerName);
   }
-  const routes = cfRequest_(base, { method: 'get' }).result || [];
-  const existing = routes.find(function (item) { return item.pattern === pattern; });
-  const payload = { pattern: pattern, script: workerName };
-  if (existing) {
-    return cfRequest_(base + '/' + existing.id, { method: 'put', payload: payload }).result;
+
+  const updatedRoutes = routes.filter(function (item) { return item.id !== normalized.id; });
+  saveConfig({ config: saved.config || {}, routes: updatedRoutes, resources: saved.resources });
+  return { ok: true, remainingRoutes: updatedRoutes };
+}
+
+function normalizeRouteInput_(route) {
+  const source = route || {};
+  const rawUrl = String(source.routePattern || source.url || '').trim();
+  let hostname = String(source.hostname || '').trim();
+  let pathPattern = String(source.pathPattern || '').trim();
+
+  if (rawUrl) {
+    const cleaned = rawUrl.replace(/^https?:\/\//i, '');
+    const slashIndex = cleaned.indexOf('/');
+    if (slashIndex >= 0) {
+      hostname = hostname || cleaned.slice(0, slashIndex);
+      pathPattern = pathPattern || cleaned.slice(slashIndex);
+    } else {
+      hostname = hostname || cleaned;
+    }
   }
-  return cfRequest_(base, { method: 'post', payload: payload }).result;
-}
 
-function requireField_(value, label) {
-  if (!value) throw new Error(label + ' wajib diisi.');
-  return value;
-}
+  if (!hostname) throw new Error('Hostname/URL route wajib diisi.');
 
-function validateRoute_(route) {
-  if (!route) throw new Error('Route tidak boleh kosong.');
-  const parts = splitHostnamePath_(requireField_(route.hostname, 'Hostname'), route.pathPrefix);
-  requireField_(route.targetUrl, 'Target URL');
-  if (!/^https:\/\//i.test(route.targetUrl)) throw new Error('Target URL harus memakai HTTPS.');
-  if (!/^[a-z0-9.-]+$/i.test(parts.hostname)) throw new Error('Hostname tidak valid. Gunakan contoh game.uploadx.my.id dan taruh /path di Path Prefix.');
-}
+  hostname = hostname.toLowerCase();
+  pathPattern = pathPattern || '/*';
+  if (!pathPattern.startsWith('/')) pathPattern = '/' + pathPattern;
 
-function normalizeRoute_(route) {
-  const parts = splitHostnamePath_(route.hostname, route.pathPrefix);
-  const hostname = parts.hostname;
-  let pathPrefix = parts.pathPrefix;
-  if (pathPrefix.charAt(0) !== '/') pathPrefix = '/' + pathPrefix;
-  pathPrefix = pathPrefix.replace(/\/+$/, '') || '/';
-  const slug = (route.workerName || ('gas-' + hostname + '-' + pathPrefix))
-    .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
-  const pattern = pathPrefix === '/' ? hostname + '/*' : hostname + pathPrefix + '*';
+  const targetUrl = String(source.targetUrl || '').trim();
+  const workerName = String(source.workerName || ('gas-proxy-' + hostname.replace(/[^a-z0-9]/g, '-'))).trim();
+
   return {
-    id: route.id || Utilities.getUuid(),
-    zoneId: route.zoneId || '',
+    id: source.id || ('route_' + Date.now()),
+    workerName: workerName,
     hostname: hostname,
-    pathPrefix: pathPrefix,
-    targetUrl: route.targetUrl.replace(/\/$/, ''),
-    workerName: slug,
-    pattern: pattern,
-    stripPrefix: route.stripPrefix !== false,
-    deliveryMode: !/^https:\/\/script\.google\.com\/a\/macros\//i.test(route.targetUrl) && route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
-    cloudflareRouteId: route.cloudflareRouteId || '',
-    status: route.status || 'draft',
-    createdAt: route.createdAt || Date.now(),
-    updatedAt: Date.now(),
+    pathPattern: pathPattern,
+    routePattern: hostname + pathPattern,
+    targetUrl: targetUrl,
+    deliveryMode: source.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
+    stripPrefix: Boolean(source.stripPrefix),
+    corsBridge: Boolean(source.corsBridge),
+    status: source.status || 'draft',
+    zoneId: source.zoneId || '',
+    accountId: source.accountId || '',
+    cloudflareRouteId: source.cloudflareRouteId || '',
+    faviconDriveFileId: source.faviconDriveFileId || '',
+    faviconDataUrl: source.faviconDataUrl || '',
+    faviconPattern: hostname + '/favicon.ico',
+    faviconCloudflareRouteId: source.faviconCloudflareRouteId || '',
   };
-}
-
-function splitHostnamePath_(hostnameValue, pathValue) {
-  const raw = String(hostnameValue || '').trim().replace(/^https?:\/\//i, '');
-  const slash = raw.indexOf('/');
-  const hostname = (slash < 0 ? raw : raw.substring(0, slash)).replace(/\/$/, '').toLowerCase();
-  let pathPrefix = String(pathValue || '/').trim();
-  if (slash >= 0 && (!pathPrefix || pathPrefix === '/')) {
-    pathPrefix = '/' + raw.substring(slash + 1).replace(/^\/+|\/+$/g, '');
-  }
-  return { hostname: hostname, pathPrefix: pathPrefix || '/' };
 }

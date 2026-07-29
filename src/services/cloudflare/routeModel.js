@@ -22,6 +22,9 @@ export function emptyRoute(zoneId = '') {
     workerName: '',
     stripPrefix: true,
     deliveryMode: 'redirect',
+    faviconDataUrl: '',
+    faviconDriveFileId: '',
+    faviconCloudflareRouteId: '',
     pattern: '',
     cloudflareRouteId: '',
     status: 'draft',
@@ -42,6 +45,8 @@ export function normalizeRouteInput(route) {
     .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63)
   const workspaceGas = /^https:\/\/script\.google\.com\/a\/macros\//i.test(String(value.targetUrl || ''))
   value.deliveryMode = !workspaceGas && value.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect'
+  value.faviconDataUrl = String(value.faviconDataUrl || '')
+  value.faviconDriveFileId = String(value.faviconDriveFileId || '')
   return value
 }
 

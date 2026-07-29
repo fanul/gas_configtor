@@ -5,6 +5,7 @@ function buildProxyWorker_(route) {
     targetUrl: route.targetUrl,
     stripPrefix: route.stripPrefix,
     deliveryMode: route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
+    faviconDataUrl: route.faviconDataUrl || '',
   });
 
   return [
@@ -13,6 +14,7 @@ function buildProxyWorker_(route) {
     "async function handleRequest(request) {",
     "  const incoming = new URL(request.url);",
     "  const base = new URL(ROUTE.targetUrl);",
+    "  if (request.method === 'GET' && ROUTE.faviconDataUrl && ['/favicon.ico', '/fav.ico', joinPath(ROUTE.pathPrefix, '/favicon.ico'), joinPath(ROUTE.pathPrefix, '/fav.ico')].includes(incoming.pathname)) return faviconResponse();",
     "  if (ROUTE.deliveryMode === 'full_proxy' && incoming.searchParams.get('__gas_rpc') === '1') {",
     "    return proxyGasRpc(request, base);",
     "  }",
@@ -49,7 +51,7 @@ function buildProxyWorker_(route) {
     "  if (contentType.includes('text/html')) {",
     "    let html = await response.text();",
 
-    "    const baseTag = '<base href=\"' + base.origin + '/\">';",
+    "    const baseTag = '<base href=\"' + base.origin + '/\">' + (ROUTE.faviconDataUrl ? '<link rel=\"icon\" href=\"' + joinPath(ROUTE.pathPrefix, '/favicon.ico') + '\">' : '');",
     "    html = /<head[^>]*>/i.test(html) ? html.replace(/<head([^>]*)>/i, '<head$1>' + baseTag) : baseTag + html;",
     "    if (ROUTE.deliveryMode === 'full_proxy') html = injectCorsBridge(html, incoming.pathname, base.toString());",
     "    const csp = responseHeaders.get('content-security-policy');",
@@ -60,6 +62,11 @@ function buildProxyWorker_(route) {
     "    return new Response(html, { status: response.status, headers: responseHeaders });",
     "  }",
     "  return new Response(response.body, { status: response.status, headers: responseHeaders });",
+    "}",
+    "function faviconResponse() {",
+    "  const encoded = ROUTE.faviconDataUrl.split(',')[1];",
+    "  const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));",
+    "  return new Response(bytes, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });",
     "}",
     "function joinPath(left, right) {",
     "  return (left.replace(/\\/$/, '') + '/' + right.replace(/^\\//, '')).replace(/\\/{2,}/g, '/');",

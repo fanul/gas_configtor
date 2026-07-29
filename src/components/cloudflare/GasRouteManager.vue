@@ -19,6 +19,20 @@ function editRoute(route) {
   editingId.value = route.id
 }
 
+function setFavicon(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  const image = new Image()
+  image.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 32
+    canvas.getContext('2d').drawImage(image, 0, 0, 32, 32)
+    form.faviconDataUrl = canvas.toDataURL('image/png')
+    URL.revokeObjectURL(image.src)
+  }
+  image.src = URL.createObjectURL(file)
+}
+
 async function saveDraft() {
   const stored = await cf.saveRouteDraft(normalizeRouteInput({ ...form, zoneId: form.zoneId || cf.config.zoneId }))
   Object.assign(form, stored)
@@ -72,6 +86,11 @@ async function deleteRoute(route) {
         <span class="text-xs text-slate-400">Target URL</span>
         <input v-model.trim="form.targetUrl" class="field font-mono" placeholder="https://script.google.com/macros/s/.../exec" />
       </label>
+      <label class="space-y-1 md:col-span-2">
+        <span class="text-xs text-slate-400">Favicon (otomatis PNG 32×32, disimpan ke Google Drive)</span>
+        <input class="field" type="file" accept="image/*" @change="setFavicon" />
+        <span v-if="form.faviconDataUrl || form.faviconDriveFileId" class="text-xs text-emerald-400">Favicon siap dipakai saat provisioning.</span>
+      </label>
       <label class="flex items-center gap-2 text-sm text-slate-300">
         <input v-model="form.stripPrefix" type="checkbox" /> Strip path prefix sebelum proxy
       </label>
@@ -96,20 +115,6 @@ async function deleteRoute(route) {
             <input v-model="form.deliveryMode" class="sr-only" type="checkbox" true-value="full_proxy" false-value="redirect" />
             <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
           </label>
-        </div>
-        <div v-if="form.deliveryMode === 'full_proxy'" class="mt-4 border-t border-amber-500/20 pt-3">
-          <p class="text-xs font-semibold uppercase tracking-wider text-amber-200">Checklist pengujian URL publik</p>
-          <div class="mt-2 grid gap-2 text-xs sm:grid-cols-2">
-            <p class="strategy-pass">✓ HTML dan aset statis via Worker</p>
-            <p class="strategy-pass">✓ Header CORS + OPTIONS API Gateway</p>
-            <p class="strategy-pass">✓ Proxy GET/POST yang dipanggil lewat fetch sendiri</p>
-            <p class="strategy-pass">✓ google.script.run melalui Worker-native RPC shim</p>
-            <p class="strategy-pass">✓ URL tetap custom tanpa iframe/wrapper Google</p>
-            <p class="strategy-fail">× JSONP/proxy publik untuk RPC Google Sheet</p>
-          </div>
-          <p class="mt-3 text-xs leading-5 text-slate-400">
-            Target GAS perlu menyediakan endpoint HTML mentah dan dispatcher RPC allowlist. Jika endpoint tersedia, UI dan fungsi Sheet berjalan langsung dari custom origin.
-          </p>
         </div>
       </div>
       <div class="flex flex-wrap justify-end gap-2">
@@ -162,6 +167,4 @@ async function deleteRoute(route) {
 .switch-control input:checked + .switch-track { background: rgb(245 158 11); box-shadow: 0 0 0 3px rgb(245 158 11 / .15); }
 .switch-control input:checked + .switch-track .switch-thumb { transform: translateX(1.5rem); }
 .switch-control input:focus-visible + .switch-track { outline: 2px solid white; outline-offset: 2px; }
-.strategy-pass { color: rgb(110 231 183); }
-.strategy-fail { color: rgb(252 165 165); }
 </style>

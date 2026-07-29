@@ -8,6 +8,7 @@ test('emptyRoute creates an independent editable draft', () => {
   assert.equal(first.zoneId, 'zone-1')
   assert.equal(first.pathPrefix, '/')
   assert.equal(first.deliveryMode, 'redirect')
+  assert.equal(first.faviconDataUrl, '')
   assert.equal(first.status, 'draft')
   assert.notEqual(first.id, second.id)
 })

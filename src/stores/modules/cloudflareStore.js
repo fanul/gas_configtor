@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { CloudflareService } from '@/services/cloudflare/index.js'
-import { normalizeCloudflareConfig, removeRoute, upsertRoute } from '@/services/cloudflare/routeModel.js'
+import { removeRoute, upsertRoute } from '@/services/cloudflare/routeModel.js'
 
-const defaultConfig = { apiToken: '', accountId: '', zoneId: '' }
+const defaultConfig = { id: '', name: '', apiToken: '', accountId: '', zoneId: '' }
 
 export const useCloudflareStore = defineStore('cloudflare', () => {
   const config = ref({ ...defaultConfig })
+  const accounts = ref([])
+  const activeAccountId = ref('')
   const gasRoutes = ref([])
   const zones = ref([])
   const kvNamespaces = ref([])
@@ -19,6 +21,37 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   const service = computed(() => new CloudflareService(config.value))
   const isConfigured = computed(() => Boolean(config.value.accountId && tokenConfigured.value))
   const routeCount = computed(() => gasRoutes.value.length)
+
+  // Metrics computation for Dashboard
+  const metrics = computed(() => {
+    const total = gasRoutes.value.length
+    const provisioned = gasRoutes.value.filter(r => r.status === 'provisioned').length
+    const drafts = gasRoutes.value.filter(r => r.status === 'draft').length
+    const redirect = gasRoutes.value.filter(r => r.deliveryMode === 'redirect').length
+    const fullProxy = gasRoutes.value.filter(r => r.deliveryMode === 'full_proxy').length
+
+    // Account distribution
+    const accountDist = accounts.value.map(acc => {
+      const count = gasRoutes.value.filter(r => r.accountId === acc.accountId || (!r.accountId && acc.id === activeAccountId.value)).length
+      return {
+        id: acc.id,
+        name: acc.name || acc.accountId,
+        count
+      }
+    })
+
+    return {
+      total,
+      provisioned,
+      drafts,
+      redirect,
+      fullProxy,
+      accountDist,
+      accountsCount: accounts.value.length,
+      zonesCount: zones.value.length,
+      kvCount: kvNamespaces.value.length
+    }
+  })
 
   function begin() {
     loading.value = true
@@ -36,11 +69,12 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
     try {
       const data = await service.value.loadConfig()
       config.value = { ...defaultConfig, ...(data.config || {}) }
+      accounts.value = data.accounts || []
+      activeAccountId.value = data.activeAccountId || (accounts.value[0]?.id || '')
+      tokenConfigured.value = Boolean(data.config?.tokenConfigured)
       gasRoutes.value = data.routes || []
       zones.value = data.resources?.zones || []
       kvNamespaces.value = data.resources?.kvNamespaces || []
-      tokenConfigured.value = Boolean(data.tokenConfigured)
-      if (data.warning) success.value = data.warning
     } catch (err) {
       fail(err, 'Gagal memuat konfigurasi')
     } finally {
@@ -51,20 +85,49 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function saveCredentials() {
     begin()
     try {
-      config.value = normalizeCloudflareConfig(config.value)
-      const result = await service.value.verify()
-      config.value.apiToken = ''
+      const result = await service.value.verifyCloudflare(config.value)
+      config.value = { ...config.value, ...(result.config || {}) }
+      accounts.value = result.accounts || accounts.value
+      activeAccountId.value = result.activeAccountId || activeAccountId.value
       tokenConfigured.value = true
-      const failed = result.permissions?.checks?.filter((item) => !item.ok) || []
-      if (failed.length) {
-        error.value = `Token aktif tetapi scope gagal: ${failed.map((item) => item.name).join(', ')}`
-      } else {
-        success.value = `Cloudflare token valid dan scope dapat dibaca (${result.status || 'active'})`
-      }
+      success.value = 'Kredensial Cloudflare berhasil diverifikasi dan disimpan'
       lastSaved.value = Date.now()
-      return result
     } catch (err) {
-      fail(err, 'Gagal menyimpan Cloudflare credentials')
+      fail(err, 'Gagal verifikasi token Cloudflare')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function switchAccount(accId) {
+    begin()
+    try {
+      const data = await service.value.callGas('switchAccount', [accId])
+      config.value = { ...defaultConfig, ...(data.config || {}) }
+      accounts.value = data.accounts || []
+      activeAccountId.value = data.activeAccountId || accId
+      tokenConfigured.value = Boolean(data.config?.tokenConfigured)
+      zones.value = data.resources?.zones || []
+      kvNamespaces.value = data.resources?.kvNamespaces || []
+      success.value = 'Berhasil berpindah akun Cloudflare'
+    } catch (err) {
+      fail(err, 'Gagal berpindah akun')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteAccount(accId) {
+    begin()
+    try {
+      const data = await service.value.callGas('deleteAccount', [accId])
+      config.value = { ...defaultConfig, ...(data.config || {}) }
+      accounts.value = data.accounts || []
+      activeAccountId.value = data.activeAccountId || ''
+      tokenConfigured.value = Boolean(data.config?.tokenConfigured)
+      success.value = 'Akun Cloudflare dihapus'
+    } catch (err) {
+      fail(err, 'Gagal menghapus akun')
     } finally {
       loading.value = false
     }
@@ -73,44 +136,38 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function fetchResources() {
     begin()
     try {
-      config.value = normalizeCloudflareConfig(config.value)
-      await service.value.saveConfig()
-      const resources = await service.value.listResources()
-      zones.value = resources.zones
-      kvNamespaces.value = resources.kvNamespaces
-      success.value = `${zones.value.length} zone dan ${kvNamespaces.value.length} KV ditemukan`
+      const resources = await service.value.fetchCloudflareResources()
+      zones.value = resources.zones || []
+      kvNamespaces.value = resources.kvNamespaces || []
+      success.value = 'Data zones & KV namespaces diperbarui'
     } catch (err) {
-      fail(err, 'Gagal mengambil resource Cloudflare')
+      fail(err, 'Gagal mengambil resources Cloudflare')
     } finally {
       loading.value = false
     }
   }
 
-  async function provisionRoute(route) {
+  async function provisionRoute(routeInput) {
     begin()
     try {
-      const result = await service.value.provisionRoute(route)
-      gasRoutes.value = upsertRoute(gasRoutes.value, {
-        ...result.route,
-        cloudflareRouteId: result.cloudflareRouteId,
-      })
-      success.value = `Route aktif: ${result.publicUrl}`
-      lastSaved.value = result.appliedAt
+      const result = await service.value.provisionRoute(routeInput)
+      gasRoutes.value = upsertRoute(gasRoutes.value, result.route)
+      success.value = `Route ${result.route.routePattern} berhasil diprovision`
+      return result.route
+    } catch (err) {
+      fail(err, 'Gagal memprovision route')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function saveRouteDraft(routeInput) {
+    begin()
+    try {
+      const result = await service.value.saveRouteDraft(routeInput)
+      gasRoutes.value = upsertRoute(gasRoutes.value, result)
+      success.value = `Draft route ${result.routePattern} disimpan`
       return result
-    } catch (err) {
-      fail(err, 'Gagal provisioning route')
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function saveRouteDraft(route) {
-    begin()
-    try {
-      const stored = await service.value.saveRouteDraft(route)
-      gasRoutes.value = upsertRoute(gasRoutes.value, stored)
-      success.value = 'Draft route tersimpan di GAS Properties'
-      return stored
     } catch (err) {
       fail(err, 'Gagal menyimpan draft route')
     } finally {
@@ -136,8 +193,8 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   }
 
   return {
-    config, gasRoutes, zones, kvNamespaces, loading, error, success, lastSaved,
-    tokenConfigured, service, isConfigured, routeCount, load, saveCredentials,
+    config, accounts, activeAccountId, gasRoutes, zones, kvNamespaces, loading, error, success, lastSaved,
+    tokenConfigured, service, isConfigured, routeCount, metrics, load, saveCredentials, switchAccount, deleteAccount,
     fetchResources, provisionRoute, saveRouteDraft, deleteRoute, updateConfig,
   }
 })
