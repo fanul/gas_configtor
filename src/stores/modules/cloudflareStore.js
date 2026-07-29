@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { CloudflareService } from '@/services/cloudflare/index.js'
+import { gasBridge } from '@/services/gas/index.js'
 import { removeRoute, upsertRoute } from '@/services/cloudflare/routeModel.js'
 
 const defaultConfig = { id: '', name: '', apiToken: '', accountId: '', zoneId: '' }
@@ -12,6 +13,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   const gasRoutes = ref([])
   const zones = ref([])
   const kvNamespaces = ref([])
+  const projects = ref([])
   const loading = ref(false)
   const error = ref('')
   const success = ref('')
@@ -22,7 +24,6 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   const isConfigured = computed(() => Boolean(config.value.accountId && tokenConfigured.value))
   const routeCount = computed(() => gasRoutes.value.length)
 
-  // Metrics computation for Dashboard
   const metrics = computed(() => {
     const total = gasRoutes.value.length
     const provisioned = gasRoutes.value.filter(r => r.status === 'provisioned').length
@@ -30,26 +31,16 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
     const redirect = gasRoutes.value.filter(r => r.deliveryMode === 'redirect').length
     const fullProxy = gasRoutes.value.filter(r => r.deliveryMode === 'full_proxy').length
 
-    // Account distribution
-    const accountDist = accounts.value.map(acc => {
-      const count = gasRoutes.value.filter(r => r.accountId === acc.accountId || (!r.accountId && acc.id === activeAccountId.value)).length
-      return {
-        id: acc.id,
-        name: acc.name || acc.accountId,
-        count
-      }
-    })
-
     return {
       total,
       provisioned,
       drafts,
       redirect,
       fullProxy,
-      accountDist,
       accountsCount: accounts.value.length,
       zonesCount: zones.value.length,
-      kvCount: kvNamespaces.value.length
+      kvCount: kvNamespaces.value.length,
+      projectsCount: projects.value.length,
     }
   })
 
@@ -75,6 +66,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
       gasRoutes.value = data.routes || []
       zones.value = data.resources?.zones || []
       kvNamespaces.value = data.resources?.kvNamespaces || []
+      projects.value = data.projects || []
     } catch (err) {
       fail(err, 'Gagal memuat konfigurasi')
     } finally {
@@ -147,6 +139,19 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
     }
   }
 
+  async function saveProjectList(newList) {
+    begin()
+    try {
+      const data = await gasBridge.saveProjects(newList)
+      projects.value = data.projects || newList
+      success.value = 'Daftar Google Project berhasil disimpan'
+    } catch (err) {
+      fail(err, 'Gagal menyimpan Google Project')
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function provisionRoute(routeInput) {
     begin()
     try {
@@ -193,8 +198,8 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   }
 
   return {
-    config, accounts, activeAccountId, gasRoutes, zones, kvNamespaces, loading, error, success, lastSaved,
+    config, accounts, activeAccountId, gasRoutes, zones, kvNamespaces, projects, loading, error, success, lastSaved,
     tokenConfigured, service, isConfigured, routeCount, metrics, load, saveCredentials, switchAccount, deleteAccount,
-    fetchResources, provisionRoute, saveRouteDraft, deleteRoute, updateConfig,
+    fetchResources, saveProjectList, provisionRoute, saveRouteDraft, deleteRoute, updateConfig,
   }
 })

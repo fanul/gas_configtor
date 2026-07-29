@@ -3,6 +3,7 @@ const ACCOUNTS_KEY = 'GAS_CONFIGTOR_ACCOUNTS';
 const ACTIVE_ACCOUNT_KEY = 'GAS_CONFIGTOR_ACTIVE_ACCOUNT';
 const ROUTES_KEY = 'GAS_CONFIGTOR_ROUTES';
 const RESOURCES_KEY = 'GAS_CONFIGTOR_RESOURCES';
+const PROJECTS_KEY = 'GAS_CONFIGTOR_PROJECTS';
 const CF_TOKEN_KEY = 'CF_API_TOKEN';
 
 function parseProperty_(key, fallback) {
@@ -15,7 +16,6 @@ function loadConfig() {
   let accounts = parseProperty_(ACCOUNTS_KEY, []);
   let activeId = PropertiesService.getScriptProperties().getProperty(ACTIVE_ACCOUNT_KEY) || '';
 
-  // Migrasi otomatis & preservasi akun lama dari GAS_CONFIGTOR_CONFIG / CF_API_TOKEN
   const legacyConfig = parseProperty_(CONFIG_KEY, {});
   const legacyConfigObj = normalizeCloudflareConfig_(legacyConfig.config || legacyConfig || {});
   const legacyToken = getSecret_(CF_TOKEN_KEY);
@@ -31,9 +31,7 @@ function loadConfig() {
         zoneId: legacyConfigObj.zoneId || '',
         tokenConfigured: Boolean(legacyToken),
       }];
-      if (legacyToken) {
-        setSecret_('CF_TOKEN_' + accId, legacyToken);
-      }
+      if (legacyToken) setSecret_('CF_TOKEN_' + accId, legacyToken);
       activeId = accId;
       saveAccounts_(accounts, activeId);
     }
@@ -47,6 +45,7 @@ function loadConfig() {
 
   const routes = parseProperty_(ROUTES_KEY, []);
   const resources = parseProperty_(RESOURCES_KEY, { zones: [], kvNamespaces: [] });
+  const projects = parseProperty_(PROJECTS_KEY, []);
   const activeAccount = accounts.find(function (a) { return a.id === activeId; }) || { id: '', name: '', accountId: '', zoneId: '', tokenConfigured: false };
 
   return {
@@ -55,10 +54,16 @@ function loadConfig() {
     activeAccountId: activeId,
     routes: routes,
     resources: resources,
+    projects: projects,
   };
 }
 
 function loadCloudflareDashboard() {
+  return loadConfig();
+}
+
+function saveProjects(projects) {
+  PropertiesService.getScriptProperties().setProperty(PROJECTS_KEY, JSON.stringify(projects || []));
   return loadConfig();
 }
 
@@ -137,10 +142,12 @@ function saveConfig(data) {
   const current = loadConfig();
   const routes = data.routes !== undefined ? data.routes : current.routes;
   const resources = data.resources !== undefined ? data.resources : current.resources;
+  const projects = data.projects !== undefined ? data.projects : current.projects;
 
   PropertiesService.getScriptProperties().setProperties({
     [ROUTES_KEY]: JSON.stringify(routes),
     [RESOURCES_KEY]: JSON.stringify(resources),
+    [PROJECTS_KEY]: JSON.stringify(projects),
   });
 
   return loadConfig();

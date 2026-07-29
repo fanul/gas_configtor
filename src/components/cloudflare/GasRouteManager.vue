@@ -79,6 +79,7 @@ async function deleteRoute(route) {
       <table class="w-full min-w-[850px] text-left text-sm">
         <thead class="bg-slate-100/90 text-xs font-bold uppercase text-slate-500">
           <tr>
+            <th class="p-3.5">Favicon</th>
             <th class="p-3.5">Hostname</th>
             <th class="p-3.5">Path</th>
             <th class="p-3.5">Target URL</th>
@@ -90,6 +91,11 @@ async function deleteRoute(route) {
         </thead>
         <tbody class="divide-y divide-slate-200/60">
           <tr v-for="route in cf.gasRoutes" :key="route.id" class="hover:bg-white/90 transition-colors">
+            <td class="p-3.5">
+              <img v-if="route.faviconDataUrl" :src="route.faviconDataUrl" class="w-6 h-6 rounded border border-slate-200 object-contain shadow-2xs" alt="Favicon" />
+              <span v-else-if="route.faviconDriveFileId" class="text-[10px] font-bold px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded border border-blue-200" title="Drive Favicon ID">Drive</span>
+              <span v-else class="text-slate-300">-</span>
+            </td>
             <td class="p-3.5 font-bold text-slate-800">{{ route.hostname }}</td>
             <td class="p-3.5 font-mono text-xs text-slate-600">{{ route.pathPrefix }}</td>
             <td class="p-3.5 font-mono text-xs max-w-xs truncate text-slate-600" :title="route.targetUrl">{{ route.targetUrl }}</td>
@@ -114,7 +120,7 @@ async function deleteRoute(route) {
             </td>
           </tr>
           <tr v-if="!cf.gasRoutes.length">
-            <td colspan="7" class="p-8 text-center text-slate-400 font-medium">
+            <td colspan="8" class="p-8 text-center text-slate-400 font-medium">
               Belum ada route. Klik '+ Tambah Route Baru' di atas untuk konfigurasi.
             </td>
           </tr>
@@ -122,86 +128,111 @@ async function deleteRoute(route) {
       </table>
     </div>
 
-    <!-- Clean Modal Form Popup -->
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div class="glass-panel w-full max-w-2xl rounded-2xl p-6 space-y-4 shadow-2xl relative bg-white/95">
-        <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-          <h3 class="text-base font-bold text-slate-800">
-            {{ editingId ? 'Edit Route Configuration' : 'Tambah Route Baru' }}
-          </h3>
-          <button @click="closeModal" class="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
-        </div>
+    <!-- Animated Smooth Modal Form Popup -->
+    <Transition name="modal">
+      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-2xl rounded-2xl p-6 space-y-4 shadow-2xl relative bg-white/95 modal-content">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+            <h3 class="text-base font-bold text-slate-800">
+              {{ editingId ? 'Edit Route Configuration' : 'Tambah Route Baru' }}
+            </h3>
+            <button @click="closeModal" class="text-slate-400 hover:text-slate-700 text-lg font-bold">✕</button>
+          </div>
 
-        <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="saveDraft">
-          <label class="space-y-1">
-            <span class="text-xs font-bold text-slate-600">Zone</span>
-            <select v-model="form.zoneId" class="field">
-              <option value="">Pilih zone</option>
-              <option v-for="zone in cf.zones" :key="zone.id" :value="zone.id">{{ zone.name }}</option>
-            </select>
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-bold text-slate-600">Hostname / Subdomain</span>
-            <input v-model.trim="form.hostname" class="field" placeholder="game.uploadx.my.id" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-bold text-slate-600">Path Prefix</span>
-            <input v-model.trim="form.pathPrefix" class="field" placeholder="/ atau /backpack" />
-          </label>
-          <label class="space-y-1">
-            <span class="text-xs font-bold text-slate-600">Worker Name</span>
-            <input v-model.trim="form.workerName" class="field" placeholder="gas-proxy-game-uploadx" />
-          </label>
-          <label class="space-y-1 md:col-span-2">
-            <span class="text-xs font-bold text-slate-600">Target URL (Google Apps Script /exec)</span>
-            <input v-model.trim="form.targetUrl" class="field font-mono text-xs" placeholder="https://script.google.com/macros/s/.../exec" />
-          </label>
-          <label class="space-y-1 md:col-span-2">
-            <span class="text-xs font-bold text-slate-600">Favicon (opsional)</span>
-            <input class="field text-xs text-slate-600" type="file" accept="image/*" @change="setFavicon" />
-            <span v-if="form.faviconDataUrl || form.faviconDriveFileId" class="text-xs font-bold text-emerald-600">✓ Favicon terpilih</span>
-          </label>
-          <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 md:col-span-2">
-            <input v-model="form.stripPrefix" type="checkbox" class="w-4 h-4 rounded text-blue-600" /> Strip path prefix sebelum proxy
-          </label>
-          <div class="md:col-span-2 rounded-xl border p-3.5 transition-all"
-            :class="form.deliveryMode === 'full_proxy' ? 'border-amber-300 bg-amber-50/80' : 'border-emerald-300 bg-emerald-50/80'">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <p class="text-xs font-bold text-slate-800">URL delivery mode</p>
-                <p class="text-[11px] text-slate-600 mt-0.5">
-                  {{ form.deliveryMode === 'full_proxy' ? 'Full proxy Worker-native (RPC Same-Origin)' : 'Redirect Kompatibel (Google Apps Script)' }}
-                </p>
+          <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="saveDraft">
+            <label class="space-y-1">
+              <span class="text-xs font-bold text-slate-600">Zone</span>
+              <select v-model="form.zoneId" class="field">
+                <option value="">Pilih zone</option>
+                <option v-for="zone in cf.zones" :key="zone.id" :value="zone.id">{{ zone.name }}</option>
+              </select>
+            </label>
+            <label class="space-y-1">
+              <span class="text-xs font-bold text-slate-600">Hostname / Subdomain</span>
+              <input v-model.trim="form.hostname" class="field" placeholder="game.uploadx.my.id" />
+            </label>
+            <label class="space-y-1">
+              <span class="text-xs font-bold text-slate-600">Path Prefix</span>
+              <input v-model.trim="form.pathPrefix" class="field" placeholder="/ atau /backpack" />
+            </label>
+            <label class="space-y-1">
+              <span class="text-xs font-bold text-slate-600">Worker Name</span>
+              <input v-model.trim="form.workerName" class="field" placeholder="gas-proxy-game-uploadx" />
+            </label>
+            <label class="space-y-1 md:col-span-2">
+              <span class="text-xs font-bold text-slate-600">Target URL (Google Apps Script /exec)</span>
+              <input v-model.trim="form.targetUrl" class="field font-mono text-xs" placeholder="https://script.google.com/macros/s/.../exec" />
+            </label>
+
+            <!-- Favicon Upload & Live Preview Section -->
+            <div class="space-y-1 md:col-span-2">
+              <span class="text-xs font-bold text-slate-600">Favicon (Otomatis 32×32 PNG)</span>
+              <div class="flex items-center gap-3">
+                <input class="field text-xs text-slate-600 flex-1" type="file" accept="image/*" @change="setFavicon" />
+                <div v-if="form.faviconDataUrl" class="flex items-center gap-2 p-1.5 bg-emerald-50 border border-emerald-300 rounded-xl">
+                  <img :src="form.faviconDataUrl" class="w-7 h-7 rounded border border-emerald-400 object-contain" alt="Preview Favicon" />
+                  <span class="text-[11px] font-bold text-emerald-700">Preview</span>
+                </div>
               </div>
-              <label class="switch-control">
-                <input v-model="form.deliveryMode" class="sr-only" type="checkbox" true-value="full_proxy" false-value="redirect" />
-                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
-              </label>
             </div>
-          </div>
-          <div class="flex items-center justify-end gap-3 md:col-span-2 pt-2 border-t border-slate-200">
-            <button type="button" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs" @click="closeModal">Batal</button>
-            <button type="button" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs" :disabled="cf.loading" @click="saveDraft">Save Draft</button>
-            <button type="button" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-white font-bold text-xs shadow-md shadow-blue-500/20"
-              :disabled="cf.loading || !form.zoneId || !form.hostname || !form.targetUrl" @click="provision">
-              {{ form.cloudflareRouteId ? 'Update Provision' : 'Provision' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
 
-    <p v-if="cf.error" class="text-xs font-bold text-rose-500">{{ cf.error }}</p>
-    <p v-else-if="cf.success" class="text-xs font-bold text-emerald-600">{{ cf.success }}</p>
+            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 md:col-span-2">
+              <input v-model="form.stripPrefix" type="checkbox" class="w-4 h-4 rounded text-blue-600" /> Strip path prefix sebelum proxy
+            </label>
+
+            <div class="md:col-span-2 rounded-xl border p-3.5 transition-all"
+              :class="form.deliveryMode === 'full_proxy' ? 'border-amber-300 bg-amber-50/80' : 'border-emerald-300 bg-emerald-50/80'">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <p class="text-xs font-bold text-slate-800">URL delivery mode</p>
+                  <p class="text-[11px] text-slate-600 mt-0.5">
+                    {{ form.deliveryMode === 'full_proxy' ? 'Full proxy Worker-native (RPC Same-Origin)' : 'Redirect Kompatibel (Google Apps Script)' }}
+                  </p>
+                </div>
+                <label class="switch-control">
+                  <input v-model="form.deliveryMode" class="sr-only" type="checkbox" true-value="full_proxy" false-value="redirect" />
+                  <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 md:col-span-2 pt-2 border-t border-slate-200">
+              <button type="button" class="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs" @click="closeModal">Batal</button>
+              <button type="button" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs" :disabled="cf.loading" @click="saveDraft">Save Draft</button>
+              <button type="button" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-sky-500 text-white font-bold text-xs shadow-md shadow-blue-500/20"
+                :disabled="cf.loading || !form.zoneId || !form.hostname || !form.targetUrl" @click="provision">
+                {{ form.cloudflareRouteId ? 'Update Provision' : 'Provision' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Transition>
   </section>
 </template>
 
 <style scoped>
 .field { width: 100%; padding: .5rem .875rem; background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(203, 213, 225, 0.8); border-radius: .75rem; font-size: .875rem; color: #0f172a; font-weight: 500; }
 .field:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
-.switch-control { display: flex; align-items: center; gap: .75rem; cursor: pointer; user-select: none; }
-.switch-track { position: relative; width: 3.25rem; height: 1.75rem; border-radius: 999px; background: #cbd5e1; transition: background-color .2s ease; }
-.switch-thumb { position: absolute; width: 1.25rem; height: 1.25rem; left: .25rem; top: .25rem; border-radius: 999px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: transform .2s cubic-bezier(.2,.8,.2,1); }
-.switch-control input:checked + .switch-track { background: #3b82f6; }
-.switch-control input:checked + .switch-track .switch-thumb { transform: translateX(1.5rem); }
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-active .modal-content,
+.modal-leave-active .modal-content {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+
+.modal-enter-from .modal-content,
+.modal-leave-to .modal-content {
+  transform: scale(0.94) translateY(10px);
+  opacity: 0;
+}
 </style>

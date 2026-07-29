@@ -28,4 +28,5 @@ export const gasBridge = {
   deleteCloudflareRoute: (route) => callGas('deleteCloudflareRoute', route),
   switchAccount: (accId) => callGas('switchAccount', accId),
   deleteAccount: (accId) => callGas('deleteAccount', accId),
+  saveProjects: (projects) => callGas('saveProjects', projects),
 }

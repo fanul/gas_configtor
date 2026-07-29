@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/appStore.js'
 import RouterIcon from '@/components/icons/RouterIcon.vue'
+import LayoutGridIcon from '@/components/icons/LayoutGridIcon.vue'
+import IconTooling from '@/components/icons/IconTooling.vue'
 
 const app = useAppStore()
 const route = useRoute()
@@ -12,6 +14,8 @@ const toggle = () => app.collapseSidebar()
 
 const navItems = computed(() => [
   { id: 'cloudflare-gas', name: 'GAS & Cloudflare Router', icon: RouterIcon, route: '/' },
+  { id: 'google-projects', name: 'Google Projects Mapping', icon: LayoutGridIcon, route: '/modules/google-projects' },
+  { id: 'swagger-api', name: 'Swagger / AI REST API', icon: IconTooling, route: '/modules/swagger-api' },
 ])
 </script>
 
@@ -56,7 +60,7 @@ const navItems = computed(() => [
     </nav>
 
     <div class="p-3 border-t border-slate-200/50 text-xs font-semibold text-slate-400 text-center">
-      <span v-if="!app.globalSettings.sidebarCollapsed">v0.2.0 • Bright Glass</span>
+      <span v-if="!app.globalSettings.sidebarCollapsed">v0.3.0 • Multi-Module</span>
     </div>
   </aside>
 </template>
