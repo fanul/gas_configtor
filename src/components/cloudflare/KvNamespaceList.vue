@@ -5,21 +5,25 @@ const cf = useCloudflareStore()
 </script>
 
 <template>
-  <section class="bg-surface-elevated rounded-xl border border-slate-700 p-5">
-    <h2 class="text-base font-semibold text-slate-100 mb-4">KV Namespaces</h2>
-    <ul v-if="cf.kvNamespaces.length" class="space-y-2">
-      <li
-        v-for="ns in cf.kvNamespaces"
-        :key="ns.id"
-        class="flex items-center justify-between px-3 py-2 bg-slate-900 rounded-lg border border-slate-700"
-      >
-        <div>
-          <p class="text-sm font-medium text-slate-100">{{ ns.title }}</p>
-          <p class="text-xs text-slate-500 font-mono">{{ ns.id }}</p>
-        </div>
-        <span class="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300">KV</span>
-      </li>
-    </ul>
-    <p v-else class="text-sm text-slate-500">No KV namespaces loaded. Configure credentials and fetch resources.</p>
+  <section class="glass-panel rounded-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-bold text-slate-800">Cloudflare KV Namespaces</h2>
+        <p class="text-xs font-medium text-slate-500 mt-0.5">Daftar namespace KV untuk akun terhubung.</p>
+      </div>
+      <span class="text-xs font-bold px-3 py-1 rounded-full bg-purple-100 text-purple-700">
+        {{ cf.kvNamespaces.length }} KV
+      </span>
+    </div>
+
+    <div v-if="cf.kvNamespaces.length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div v-for="kv in cf.kvNamespaces" :key="kv.id" class="p-3.5 bg-white/70 rounded-xl border border-slate-200/80 shadow-2xs">
+        <p class="text-xs font-bold text-slate-800">{{ kv.title }}</p>
+        <p class="text-[11px] font-mono text-slate-500 mt-1 truncate" :title="kv.id">{{ kv.id }}</p>
+      </div>
+    </div>
+    <div v-else class="p-4 text-center text-xs font-medium text-slate-400 bg-white/40 rounded-xl border border-dashed border-slate-300">
+      Belum ada KV Namespaces atau belum melakukan Fetch Resources.
+    </div>
   </section>
 </template>

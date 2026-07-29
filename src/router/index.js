@@ -1,12 +1,11 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '@/views/HomeView.vue'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import CloudflareGasView from '@/views/modules/CloudflareGasView.vue'
 
 const routes = [
   {
     path: '/',
     name: 'home',
-    component: HomeView,
+    component: CloudflareGasView,
   },
   {
     path: '/modules/cloudflare-gas',
@@ -16,7 +15,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(),
   routes,
 })
 
