@@ -320,6 +320,7 @@ function normalizeRouteInput_(route) {
 
   hostname = hostname.toLowerCase();
   if (!pathPrefix.startsWith('/')) pathPrefix = '/' + pathPrefix;
+  pathPrefix = pathPrefix.replace(/\*+$/, '');
   pathPrefix = pathPrefix.replace(/\/+$/, '') || '/';
   const routePattern = hostname + (pathPrefix === '/' ? '/*' : pathPrefix + '*');
 

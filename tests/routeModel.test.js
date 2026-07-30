@@ -37,6 +37,11 @@ test('normalizeRouteInput forces Workspace-scoped GAS to redirect mode', () => {
   }).deliveryMode, 'redirect')
 })
 
+test('normalizeRouteInput removes Cloudflare wildcards from path prefix', () => {
+  assert.equal(normalizeRouteInput({ pathPrefix: '/*' }).pathPrefix, '/')
+  assert.equal(normalizeRouteInput({ pathPrefix: '/app/**' }).pathPrefix, '/app')
+})
+
 test('normalizeCloudflareConfig trims copied identifiers and token', () => {
   const config = normalizeCloudflareConfig({
     accountId: ' 1a7341a5191b0985189879190307e821 ',
