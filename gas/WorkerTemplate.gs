@@ -11,7 +11,7 @@ function buildProxyWorker_(route) {
 
   return [
     "const ROUTE = " + config + ";",
-    "addEventListener('fetch', event => event.respondWith(handleRequest(event.request)));",
+    "addEventListener('fetch', event => event.respondWith(handleRequest(event.request).catch(function (err) { return new Response('Worker request failed: ' + err.message, { status: 502 }); })));",
     "async function handleRequest(request) {",
     "  const incoming = new URL(request.url);",
     "  const base = new URL(ROUTE.targetUrl);",
@@ -25,7 +25,7 @@ function buildProxyWorker_(route) {
     "    return proxyGoogleRuntime(request, corsTarget);",
     "  }",
     "  let suffix = incoming.pathname;",
-    "  if (ROUTE.stripPrefix && ROUTE.pathPrefix !== '/' && suffix.startsWith(ROUTE.pathPrefix)) {",
+    "  if (ROUTE.stripPrefix && ROUTE.pathPrefix !== '/' && (suffix === ROUTE.pathPrefix || suffix.startsWith(ROUTE.pathPrefix + '/'))) {",
     "    suffix = suffix.slice(ROUTE.pathPrefix.length);",
     "  }",
     "  if (suffix && suffix !== '/') base.pathname = joinPath(base.pathname, suffix);",
@@ -65,7 +65,8 @@ function buildProxyWorker_(route) {
     "  return new Response(response.body, { status: response.status, headers: responseHeaders });",
     "}",
     "function faviconResponse() {",
-    "  const encoded = ROUTE.faviconDataUrl.split(',')[1];",
+    "  const encoded = (ROUTE.faviconDataUrl.match(/^data:[^;,]+;base64,(.+)$/) || [])[1];",
+    "  if (!encoded) return new Response('Invalid favicon', { status: 500 });",
     "  const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));",
     "  return new Response(bytes, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });",
     "}",

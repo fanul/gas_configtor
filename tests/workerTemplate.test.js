@@ -82,6 +82,15 @@ test('proxy appends only real suffix after stripped prefix', async () => {
   assert.equal(target, 'https://example.com/base/api/users?id=1')
 })
 
+test('proxy does not strip a sibling path that merely shares the prefix', async () => {
+  const target = await capturedTarget({
+    hostname: 'game.uploadx.my.id', pathPrefix: '/backpack_jianghu',
+    targetUrl: 'https://example.com/base', stripPrefix: true,
+  }, 'https://game.uploadx.my.id/backpack_jianghu-other')
+
+  assert.equal(target, 'https://example.com/base/backpack_jianghu-other')
+})
+
 test('proxy injects upstream base URL so root-relative assets stay upstream', async () => {
   const html = '<html><head><link href="/static/macros/client/app.css"></head><body></body></html>'
   const upstream = new Response(html, { headers: {
