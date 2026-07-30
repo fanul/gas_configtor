@@ -280,14 +280,14 @@ function normalizeRouteInput_(route) {
   const source = route || {};
   const rawUrl = String(source.routePattern || source.url || '').trim();
   let hostname = String(source.hostname || '').trim();
-  let pathPattern = String(source.pathPattern || '').trim();
+  let pathPrefix = String(source.pathPrefix || source.pathPattern || '/').trim();
 
   if (rawUrl) {
     const cleaned = rawUrl.replace(/^https?:\/\//i, '');
     const slashIndex = cleaned.indexOf('/');
     if (slashIndex >= 0) {
       hostname = hostname || cleaned.slice(0, slashIndex);
-      pathPattern = pathPattern || cleaned.slice(slashIndex);
+      if (pathPrefix === '/') pathPrefix = cleaned.slice(slashIndex);
     } else {
       hostname = hostname || cleaned;
     }
@@ -296,8 +296,9 @@ function normalizeRouteInput_(route) {
   if (!hostname) throw new Error('Hostname/URL route wajib diisi.');
 
   hostname = hostname.toLowerCase();
-  pathPattern = pathPattern || '/*';
-  if (!pathPattern.startsWith('/')) pathPattern = '/' + pathPattern;
+  if (!pathPrefix.startsWith('/')) pathPrefix = '/' + pathPrefix;
+  pathPrefix = pathPrefix.replace(/\/+$/, '') || '/';
+  const routePattern = hostname + (pathPrefix === '/' ? '/*' : pathPrefix + '*');
 
   const targetUrl = String(source.targetUrl || '').trim();
   const workerName = String(source.workerName || ('gas-proxy-' + hostname.replace(/[^a-z0-9]/g, '-'))).trim();
@@ -306,8 +307,8 @@ function normalizeRouteInput_(route) {
     id: source.id || ('route_' + Date.now()),
     workerName: workerName,
     hostname: hostname,
-    pathPattern: pathPattern,
-    routePattern: hostname + pathPattern,
+    pathPrefix: pathPrefix,
+    routePattern: routePattern,
     targetUrl: targetUrl,
     deliveryMode: source.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
     stripPrefix: Boolean(source.stripPrefix),

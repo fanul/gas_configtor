@@ -34,3 +34,10 @@ test('provision surfaces the failing Cloudflare step instead of reading undefine
   assert.match(body, /throw new Error\('Provision gagal pada tahap/)
   assert.doesNotMatch(body, /ok:\s*false/)
 })
+
+test('GAS normalization preserves pathPrefix required by the Worker and favicon handler', async () => {
+  const source = await readFile(new URL('../gas/CloudflareApi.gs', import.meta.url), 'utf8')
+
+  assert.match(source, /source\.pathPrefix \|\| source\.pathPattern/)
+  assert.match(source, /pathPrefix: pathPrefix/)
+})
