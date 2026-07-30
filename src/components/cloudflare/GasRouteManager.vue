@@ -25,6 +25,12 @@ function closeModal() {
   showModal.value = false
 }
 
+function faviconUrl(route) {
+  if (route?.faviconDataUrl) return route.faviconDataUrl
+  if (route?.faviconCloudflareRouteId || route?.faviconDriveFileId) return `https://${route.hostname}/favicon.ico`
+  return ''
+}
+
 function setFavicon(event) {
   const file = event.target.files?.[0]
   if (!file) return
@@ -92,8 +98,7 @@ async function deleteRoute(route) {
         <tbody class="divide-y divide-slate-200/60">
           <tr v-for="route in cf.gasRoutes" :key="route.id" class="hover:bg-white/90 transition-colors">
             <td class="p-3.5">
-              <img v-if="route.faviconDataUrl" :src="route.faviconDataUrl" class="w-6 h-6 rounded border border-slate-200 object-contain shadow-2xs" alt="Favicon" />
-              <span v-else-if="route.faviconDriveFileId" class="text-[10px] font-bold px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded border border-blue-200" title="Drive Favicon ID">Drive</span>
+              <img v-if="faviconUrl(route)" :src="faviconUrl(route)" class="w-6 h-6 rounded border border-slate-200 object-contain shadow-2xs" alt="Favicon" />
               <span v-else class="text-slate-300">-</span>
             </td>
             <td class="p-3.5 font-bold text-slate-800">{{ route.hostname }}</td>
@@ -169,8 +174,8 @@ async function deleteRoute(route) {
               <span class="text-xs font-bold text-slate-600">Favicon (Otomatis 32×32 PNG)</span>
               <div class="flex items-center gap-3">
                 <input class="field text-xs text-slate-600 flex-1" type="file" accept="image/*" @change="setFavicon" />
-                <div v-if="form.faviconDataUrl" class="flex items-center gap-2 p-1.5 bg-emerald-50 border border-emerald-300 rounded-xl">
-                  <img :src="form.faviconDataUrl" class="w-7 h-7 rounded border border-emerald-400 object-contain" alt="Preview Favicon" />
+                <div v-if="faviconUrl(form)" class="flex items-center gap-2 p-1.5 bg-emerald-50 border border-emerald-300 rounded-xl">
+                  <img :src="faviconUrl(form)" class="w-7 h-7 rounded border border-emerald-400 object-contain" alt="Preview Favicon" />
                   <span class="text-[11px] font-bold text-emerald-700">Preview</span>
                 </div>
               </div>
