@@ -196,6 +196,26 @@ function runProvisionStep_(name, fn) {
   }
 }
 
+function smokeTestRoute_(route) {
+  const urls = ['https://' + route.hostname + route.pathPrefix];
+  if (route.faviconDataUrl || route.faviconDriveFileId) urls.push('https://' + route.hostname + '/favicon.ico');
+
+  urls.forEach(function (url) {
+    let response;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = UrlFetchApp.fetch(url, { followRedirects: false, muteHttpExceptions: true });
+        if (response.getResponseCode() < 500) break;
+      } catch (err) {
+        if (attempt === 2) throw err;
+      }
+      Utilities.sleep(1000);
+    }
+    const status = response && response.getResponseCode();
+    if (!status || status >= 500) throw new Error(url + ' merespons HTTP ' + (status || 'network error'));
+  });
+}
+
 function provisionRoute(routeInput) {
   return provisionCloudflareRoute(routeInput);
 }
@@ -236,6 +256,9 @@ function provisionCloudflareRoute(routeInput) {
   }
   runProvisionStep_('DNS record untuk ' + normalized.hostname, function () {
     return ensureDnsRecord_(zoneId, normalized.hostname);
+  });
+  runProvisionStep_('Smoke Test ' + normalized.routePattern, function () {
+    return smokeTestRoute_(normalized);
   });
 
   const index = routes.findIndex(function (item) { return item.id === normalized.id; });
