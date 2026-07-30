@@ -59,12 +59,12 @@ test('worker serves provisioned favicon without proxying upstream', async () => 
   assert.equal(result.response.headers.get('content-type'), 'image/png')
 })
 
-test('worker serves favicon route for the host root', async () => {
+test('worker serves favicon route for the configured project path', async () => {
   const result = await runWorker({
     hostname: 'game.uploadx.my.id', pathPrefix: '/backpack_jianghu',
     targetUrl: 'https://example.com', stripPrefix: true,
     faviconDataUrl: 'data:image/png;base64,iVBORw0KGgo=',
-  }, 'https://game.uploadx.my.id/favicon.ico')
+  }, 'https://game.uploadx.my.id/backpack_jianghu/favicon.ico')
 
   assert.equal(result.target, undefined)
   assert.equal(result.response.status, 200)

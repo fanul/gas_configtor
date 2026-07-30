@@ -15,7 +15,7 @@ function buildProxyWorker_(route) {
     "async function handleRequest(request) {",
     "  const incoming = new URL(request.url);",
     "  const base = new URL(ROUTE.targetUrl);",
-    "  if (request.method === 'GET' && ROUTE.faviconDataUrl && ['/favicon.ico', '/fav.ico', joinPath(ROUTE.pathPrefix, '/favicon.ico'), joinPath(ROUTE.pathPrefix, '/fav.ico')].includes(incoming.pathname)) return faviconResponse();",
+    "  if (request.method === 'GET' && ROUTE.faviconDataUrl && [joinPath(ROUTE.pathPrefix, '/favicon.ico'), joinPath(ROUTE.pathPrefix, '/fav.ico')].includes(incoming.pathname)) return faviconResponse();",
     "  if (ROUTE.deliveryMode === 'full_proxy' && incoming.searchParams.get('__gas_rpc') === '1') {",
     "    return proxyGasRpc(request, base);",
     "  }",

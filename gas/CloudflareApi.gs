@@ -198,7 +198,7 @@ function runProvisionStep_(name, fn) {
 
 function smokeTestRoute_(route) {
   const urls = ['https://' + route.hostname + route.pathPrefix];
-  if (route.faviconDataUrl || route.faviconDriveFileId) urls.push('https://' + route.hostname + '/favicon.ico');
+  if (route.faviconDataUrl || route.faviconDriveFileId) urls.push('https://' + route.faviconPattern);
 
   urls.forEach(function (url) {
     let response;
@@ -266,7 +266,6 @@ function provisionCloudflareRoute(routeInput) {
   normalized.faviconCloudflareRouteId = faviconRouteResult ? faviconRouteResult.id : '';
   normalized.status = 'provisioned';
   normalized.accountId = saved.config.accountId;
-  normalized.faviconDataUrl = '';
   if (index >= 0) routes[index] = normalized; else routes.push(normalized);
   saveConfig({ config: saved.config || {}, routes: routes, resources: saved.resources });
 
@@ -344,7 +343,7 @@ function normalizeRouteInput_(route) {
     cloudflareRouteId: source.cloudflareRouteId || '',
     faviconDriveFileId: source.faviconDriveFileId || '',
     faviconDataUrl: source.faviconDataUrl || '',
-    faviconPattern: hostname + '/favicon.ico',
+    faviconPattern: hostname + (pathPrefix === '/' ? '/favicon.ico' : pathPrefix + '/favicon.ico'),
     faviconCloudflareRouteId: source.faviconCloudflareRouteId || '',
   };
 }

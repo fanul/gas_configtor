@@ -16,8 +16,17 @@ test('provision attaches dummy DNS only after Worker script and route exist', as
 
 test('provision creates a root favicon Worker route', async () => {
   const source = await readFile(new URL('../gas/CloudflareApi.gs', import.meta.url), 'utf8')
-  assert.match(source, /faviconPattern:\s*hostname\s*\+\s*'\/favicon\.ico'/)
+  assert.match(source, /faviconPattern:/)
+  assert.match(source, /favicon\.ico/)
   assert.match(source, /faviconCloudflareRouteId/)
+})
+
+test('provision retains favicon data and scopes nested favicon routes by path', async () => {
+  const source = await readFile(new URL('../gas/CloudflareApi.gs', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /normalized\.faviconDataUrl = ''/)
+  assert.match(source, /pathPrefix \+ '\/favicon\.ico'/)
+  assert.match(source, /'https:\/\/' \+ route\.faviconPattern/)
 })
 
 test('store preserves the provision result envelope used by the route form', async () => {
@@ -56,6 +65,6 @@ test('provision smoke-tests route and optional favicon before saving success', a
   const smoke = source.slice(source.indexOf('function smokeTestRoute_('), source.indexOf('function provisionRoute('))
 
   assert.match(smoke, /route\.hostname \+ route\.pathPrefix/)
-  assert.match(smoke, /favicon\.ico/)
+  assert.match(smoke, /route\.faviconPattern/)
   assert.match(smoke, /status >= 500/)
 })

@@ -27,7 +27,10 @@ function closeModal() {
 
 function faviconUrl(route) {
   if (route?.faviconDataUrl) return route.faviconDataUrl
-  if (route?.faviconCloudflareRouteId || route?.faviconDriveFileId) return `https://${route.hostname}/favicon.ico`
+  if (route?.faviconCloudflareRouteId || route?.faviconDriveFileId) {
+    const prefix = route.pathPrefix && route.pathPrefix !== '/' ? route.pathPrefix.replace(/\/$/, '') : ''
+    return `https://${route.hostname}${prefix}/favicon.ico`
+  }
   return ''
 }
 
