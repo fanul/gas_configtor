@@ -301,6 +301,7 @@ function normalizeRouteInput_(route) {
   const routePattern = hostname + (pathPrefix === '/' ? '/*' : pathPrefix + '*');
 
   const targetUrl = String(source.targetUrl || '').trim();
+  if (!/^https:\/\//i.test(targetUrl)) throw new Error('Target URL HTTPS wajib diisi.');
   const workerName = String(source.workerName || ('gas-proxy-' + hostname.replace(/[^a-z0-9]/g, '-'))).trim();
 
   return {

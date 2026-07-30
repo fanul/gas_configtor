@@ -77,7 +77,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function saveCredentials() {
     begin()
     try {
-      const result = await service.value.verifyCloudflare(config.value)
+      const result = await service.value.verify()
       config.value = { ...config.value, ...(result.config || {}) }
       accounts.value = result.accounts || accounts.value
       activeAccountId.value = result.activeAccountId || activeAccountId.value
@@ -94,7 +94,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function switchAccount(accId) {
     begin()
     try {
-      const data = await service.value.callGas('switchAccount', [accId])
+      const data = await gasBridge.switchAccount(accId)
       config.value = { ...defaultConfig, ...(data.config || {}) }
       accounts.value = data.accounts || []
       activeAccountId.value = data.activeAccountId || accId
@@ -112,7 +112,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function deleteAccount(accId) {
     begin()
     try {
-      const data = await service.value.callGas('deleteAccount', [accId])
+      const data = await gasBridge.deleteAccount(accId)
       config.value = { ...defaultConfig, ...(data.config || {}) }
       accounts.value = data.accounts || []
       activeAccountId.value = data.activeAccountId || ''
@@ -128,7 +128,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
   async function fetchResources() {
     begin()
     try {
-      const resources = await service.value.fetchCloudflareResources()
+      const resources = await service.value.listResources()
       zones.value = resources.zones || []
       kvNamespaces.value = resources.kvNamespaces || []
       success.value = 'Data zones & KV namespaces diperbarui'

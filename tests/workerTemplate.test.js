@@ -41,6 +41,15 @@ async function capturedTarget(route, incomingUrl) {
   return (await runWorker(route, incomingUrl)).target
 }
 
+test('generated Worker defaults an empty pathPrefix instead of throwing 1101', async () => {
+  const result = await runWorker({
+    hostname: 'example.com', pathPrefix: '', targetUrl: 'https://example.org/exec',
+    stripPrefix: true, deliveryMode: 'redirect', faviconDataUrl: '',
+  }, 'https://example.com/')
+
+  assert.equal(result.response.status, 200)
+})
+
 test('worker serves provisioned favicon without proxying upstream', async () => {
   const result = await runWorker({
     hostname: 'x.test', pathPrefix: '/app', targetUrl: 'https://example.com',

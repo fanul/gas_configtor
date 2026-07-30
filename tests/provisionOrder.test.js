@@ -40,4 +40,11 @@ test('GAS normalization preserves pathPrefix required by the Worker and favicon 
 
   assert.match(source, /source\.pathPrefix \|\| source\.pathPattern/)
   assert.match(source, /pathPrefix: pathPrefix/)
+  assert.match(source, /Target URL HTTPS wajib diisi/)
+})
+
+test('Cloudflare store only calls implemented service methods or gasBridge', async () => {
+  const source = await readFile(new URL('../src/stores/modules/cloudflareStore.js', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /service\.value\.(verifyCloudflare|fetchCloudflareResources|callGas)/)
 })

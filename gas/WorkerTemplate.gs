@@ -1,7 +1,8 @@
 function buildProxyWorker_(route) {
+  route = route || {};
   const config = JSON.stringify({
     hostname: route.hostname,
-    pathPrefix: route.pathPrefix,
+    pathPrefix: route.pathPrefix || '/',
     targetUrl: route.targetUrl,
     stripPrefix: route.stripPrefix,
     deliveryMode: route.deliveryMode === 'full_proxy' ? 'full_proxy' : 'redirect',
@@ -69,7 +70,7 @@ function buildProxyWorker_(route) {
     "  return new Response(bytes, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });",
     "}",
     "function joinPath(left, right) {",
-    "  return (left.replace(/\\/$/, '') + '/' + right.replace(/^\\//, '')).replace(/\\/{2,}/g, '/');",
+    "  return (String(left || '').replace(/\\/$/, '') + '/' + String(right || '').replace(/^\\//, '')).replace(/\\/{2,}/g, '/');",
     "}",
     "function allowBaseOrigin(csp, origin) {",
     "  if (/base-uri\\s+[^;]*/i.test(csp)) {",
