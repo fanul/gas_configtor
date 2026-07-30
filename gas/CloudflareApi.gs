@@ -103,7 +103,7 @@ function listCloudflareResources() {
 }
 
 function ensureWorkerScript_(accountId, scriptName, options) {
-  const content = generateWorkerScript(options);
+  const content = buildProxyWorker_(options);
   return cfRequest_('/accounts/' + accountId + '/workers/scripts/' + scriptName, {
     method: 'put',
     contentType: 'application/javascript',
