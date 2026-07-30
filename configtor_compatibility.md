@@ -17,7 +17,7 @@ Goals:
 
 Requirements:
 
-1. Preserve the default doGet(e) behavior so the original GAS /exec URL remains usable.
+1. Preserve the default doGet(e) behavior so the original GAS /exec URL remains usable. The owner-only /dev URL must also remain usable; do not replace Google’s native HtmlService/google.script.run flow for either native URL. Only the Worker request carrying `__full_proxy_html=1` may use the JSON HTML branch. A native `/dev` request may not be assumed anonymous or available to the Worker.
 
 2. Add a branch to doGet(e) for e.parameter.__full_proxy_html === "1".
    Return JSON through ContentService:
