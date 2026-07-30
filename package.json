@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:gas": "npm run build && node scripts/build-gas.mjs && clasp push --force && git push",
+    "build:gas": "npm run build && node scripts/build-gas.mjs && clasp push --force && clasp deploy -i AKfycbwN9hiADEiONgF9T18jHuEiS4uvJpvMiYY0bOUM1CrvpkFEv858wMO58QTkzkx5vkrYxA -d \"Automated build\" && git push",
     "test": "node --test tests/*.test.js",
     "preview": "vite preview"
   },
