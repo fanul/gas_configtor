@@ -26,3 +26,11 @@ test('store preserves the provision result envelope used by the route form', asy
   assert.match(body, /return result\s/)
   assert.doesNotMatch(body, /return result\.route/)
 })
+
+test('provision surfaces the failing Cloudflare step instead of reading undefined result', async () => {
+  const source = await readFile(new URL('../gas/CloudflareApi.gs', import.meta.url), 'utf8')
+  const body = source.slice(source.indexOf('function runProvisionStep_('), source.indexOf('function provisionRoute('))
+
+  assert.match(body, /throw new Error\('Provision gagal pada tahap/)
+  assert.doesNotMatch(body, /ok:\s*false/)
+})

@@ -192,7 +192,7 @@ function runProvisionStep_(name, fn) {
     const result = fn();
     return { name: name, ok: true, result: result };
   } catch (err) {
-    return { name: name, ok: false, error: err.message };
+    throw new Error('Provision gagal pada tahap [' + name + ']: ' + err.message);
   }
 }
 
