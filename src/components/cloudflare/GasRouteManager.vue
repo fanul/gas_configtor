@@ -189,9 +189,9 @@ async function deleteRoute(route) {
                     {{ form.deliveryMode === 'full_proxy' ? 'Full proxy Worker-native (RPC Same-Origin)' : 'Redirect Kompatibel (Google Apps Script)' }}
                   </p>
                 </div>
-                <label class="switch-control">
-                  <input v-model="form.deliveryMode" class="sr-only" type="checkbox" true-value="full_proxy" false-value="redirect" />
-                  <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                <label class="switch-control" title="Ganti URL delivery mode">
+                  <input v-model="form.deliveryMode" type="checkbox" true-value="full_proxy" false-value="redirect" aria-label="URL delivery mode" />
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
                 </label>
               </div>
             </div>
@@ -214,6 +214,12 @@ async function deleteRoute(route) {
 <style scoped>
 .field { width: 100%; padding: .5rem .875rem; background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(203, 213, 225, 0.8); border-radius: .75rem; font-size: .875rem; color: #0f172a; font-weight: 500; }
 .field:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+.switch-control { position: relative; display: flex; align-items: center; cursor: pointer; }
+.switch-control input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.switch-track { position: relative; width: 3.25rem; height: 1.75rem; border-radius: 999px; background: #cbd5e1; transition: background-color .2s ease; }
+.switch-thumb { position: absolute; width: 1.25rem; height: 1.25rem; left: .25rem; top: .25rem; border-radius: 999px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,.2); transition: transform .2s ease; }
+.switch-control input:checked + .switch-track { background: #3b82f6; }
+.switch-control input:checked + .switch-track .switch-thumb { transform: translateX(1.5rem); }
 
 .modal-enter-active,
 .modal-leave-active {

@@ -158,7 +158,7 @@ export const useCloudflareStore = defineStore('cloudflare', () => {
       const result = await service.value.provisionRoute(routeInput)
       gasRoutes.value = upsertRoute(gasRoutes.value, result.route)
       success.value = `Route ${result.route.routePattern} berhasil diprovision`
-      return result.route
+      return result
     } catch (err) {
       fail(err, 'Gagal memprovision route')
     } finally {
